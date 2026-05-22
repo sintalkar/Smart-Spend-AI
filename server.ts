@@ -40,7 +40,7 @@ async function startServer() {
 
   // Gemini Setup
   const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-  
+
   if (!GEMINI_API_KEY) {
     console.warn("CRITICAL: GEMINI_API_KEY is not set in the environment variables. AI features will fail.");
   }
@@ -67,25 +67,25 @@ async function startServer() {
   const callGeminiWithRetry = async <T>(fn: () => Promise<T>): Promise<T> => {
     const MAX_RETRIES = 5;
     let delay = 2000;
-    
+
     let lastError: any;
     for (let i = 0; i < MAX_RETRIES; i++) {
-        try {
-            return await fn();
-        } catch (error: any) {
-            lastError = error;
-            const isTransientError = error?.status === 503 || error?.status === 429 || 
-                                     error?.message?.includes('503') || error?.message?.includes('429') ||
-                                     error?.message?.includes('high demand');
-            
-            if (isTransientError && i < MAX_RETRIES - 1) {
-                console.warn(`[Gemini Retry] Attempt ${i + 1} failed. Retrying in ${delay}ms...`);
-                await new Promise(resolve => setTimeout(resolve, delay));
-                delay *= 2; // Exponential backoff
-                continue;
-            }
-            throw error;
+      try {
+        return await fn();
+      } catch (error: any) {
+        lastError = error;
+        const isTransientError = error?.status === 503 || error?.status === 429 ||
+          error?.message?.includes('503') || error?.message?.includes('429') ||
+          error?.message?.includes('high demand');
+
+        if (isTransientError && i < MAX_RETRIES - 1) {
+          console.warn(`[Gemini Retry] Attempt ${i + 1} failed. Retrying in ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          delay *= 2; // Exponential backoff
+          continue;
         }
+        throw error;
+      }
     }
     throw lastError;
   };
@@ -93,9 +93,9 @@ async function startServer() {
   // Helper to check for API key before calling Gemini
   const ensureApiKey = (res: any) => {
     if (!GEMINI_API_KEY) {
-      res.status(403).json({ 
-        error: "Gemini API key is missing. Please select an API key in the 'Settings > Secrets' panel and restart the application.", 
-        code: "MISSING_API_KEY" 
+      res.status(403).json({
+        error: "Gemini API key is missing. Please select an API key in the 'Settings > Secrets' panel and restart the application.",
+        code: "MISSING_API_KEY"
       });
       return false;
     }
@@ -106,10 +106,10 @@ async function startServer() {
   app.post('/api/admin/ai-controller', async (req, res) => {
     if (!ensureApiKey(res)) return;
     const { message } = req.body;
-    
+
     try {
       const chat = ai.chats.create({
-        model: "gemini-pro-vision",
+        model: "gemini-2.5-flash",
         config: {
           systemInstruction: `You are "Smart Spend Admin", the powerful and secure administrative AI controller for the Smart Spend application...`,
         },
@@ -126,7 +126,7 @@ async function startServer() {
   app.post('/api/ai/insights', async (req, res) => {
     if (!ensureApiKey(res)) return;
     const { period, totalSpent, income, categoryBreakdown, previousPeriodBreakdown } = req.body;
-    
+
     try {
       const savingsRate = income > 0 ? ((income - totalSpent) / income) * 100 : 0;
 
@@ -141,7 +141,7 @@ async function startServer() {
       Be specific to the actual spending patterns. Indian context. Make suggestions relative to the period length.`;
 
       const response = await ai.models.generateContent({
-        model: "gemini-pro-vision",
+        model: "gemini-2.5-flash",
         contents: prompt,
         config: {
           temperature: 0,
@@ -171,7 +171,7 @@ async function startServer() {
   app.post('/api/ai/parse-transaction', async (req, res) => {
     if (!ensureApiKey(res)) return;
     const { text, context } = req.body;
-    
+
     try {
       const prompt = `Parse the following transaction text into a JSON object:
       "${text}"
@@ -198,7 +198,7 @@ async function startServer() {
       Default category is "other" if unsure.`;
 
       const response = await ai.models.generateContent({
-        model: "gemini-pro-vision",
+        model: "gemini-2.5-flash",
         contents: prompt,
         config: {
           temperature: 0,
@@ -216,7 +216,7 @@ async function startServer() {
   app.post('/api/ai/score-tips', async (req, res) => {
     if (!ensureApiKey(res)) return;
     const { score, breakdown } = req.body;
-    
+
     try {
       const prompt = `User's Financial Money Score: ${score}/100.
       Breakdown Details: ${JSON.stringify(breakdown)}
@@ -230,7 +230,7 @@ async function startServer() {
       Output format: JSON array of objects.`;
 
       const response = await ai.models.generateContent({
-        model: "gemini-pro-vision",
+        model: "gemini-2.5-flash",
         contents: prompt,
         config: {
           temperature: 0,
@@ -265,25 +265,25 @@ async function startServer() {
 
   app.post('/api/ai/greet', async (req, res) => {
     const { userName, totalBalance, monthlySpent, budgetLimit } = req.body;
-    
+
     if (!GEMINI_API_KEY) {
       return res.json({ greeting: `Hi ${userName}, ready to track some spends?` });
     }
-    
+
     try {
       const prompt = `Generate a very short, witty, and personalized one-line greeting for a finance app user named ${userName}.
       Status: Balance ₹${totalBalance}, Spent this month ₹${monthlySpent} out of ₹${budgetLimit} budget.
       Keep it under 15 words. Be encouraging but honest. Use Indian slang sparsely if it fits.`;
 
       const response = await ai.models.generateContent({
-        model: "gemini-pro-vision",
+        model: "gemini-2.5-flash",
         contents: prompt,
       });
 
       res.json({ greeting: response.text });
     } catch (error: any) {
       // Check for 429 Quota Exceeded or 503 Unavailable
-      const isQuotaOrUnavailable = 
+      const isQuotaOrUnavailable =
         error?.status === 429 || error?.message?.includes('429') || error?.message?.includes('quota') ||
         error?.status === 503 || error?.message?.includes('503') || error?.message?.includes('UNAVAILABLE');
 
@@ -291,7 +291,7 @@ async function startServer() {
         console.warn("--> Gemini Quota exceeded/Unavailable. Using fallback greeting.");
         return res.json({ greeting: `Hi ${userName}, tracking your spends like a pro! 🚀` });
       }
-      
+
       console.warn("--> Greet route info:", error?.message || error);
       res.json({ greeting: `Hi ${userName}, let's track your spends today!` });
     }
@@ -300,7 +300,7 @@ async function startServer() {
   app.post('/api/ai/scan-receipt', async (req, res) => {
     if (!ensureApiKey(res)) return;
     const { image, mimeType } = req.body;
-    
+
     try {
       const prompt = `Analyze this receipt image. Extract all data as JSON:
       {merchant_name, date, items: [{name, quantity, unit_price, total_price, category}], subtotal, tax, discount, total, payment_method, currency}
@@ -311,7 +311,7 @@ async function startServer() {
 
       console.log("[Receipt Scan] Sending request to AI model...");
       const response = await callGeminiWithRetry(() => ai.models.generateContent({
-        model: "gemini-pro-vision",
+        model: "gemini-2.5-flash",
         contents: [
           {
             role: "user",
@@ -344,7 +344,7 @@ async function startServer() {
   app.post('/api/ai/categorize', async (req, res) => {
     if (!ensureApiKey(res)) return;
     const { merchant, note } = req.body;
-    
+
     try {
       const prompt = `Categorize this transaction:
       Merchant: ${merchant || 'Unknown'}
@@ -355,7 +355,7 @@ async function startServer() {
       Return ONLY a JSON object: {"categoryId": "string", "confidence": number, "reason": "brief string"}`;
 
       const response = await ai.models.generateContent({
-        model: "gemini-pro-vision",
+        model: "gemini-2.5-flash",
         contents: prompt,
         config: {
           temperature: 0,
@@ -375,7 +375,7 @@ async function startServer() {
       return res.json({ alert: null });
     }
     const { monthlySpent, budgetLimit, currentPeriodTx, daysInMonth, dayOfMonth } = req.body;
-    
+
     try {
       const projection = (monthlySpent / dayOfMonth) * daysInMonth;
       const categories = currentPeriodTx.reduce((acc: any, t: any) => {
@@ -397,7 +397,7 @@ async function startServer() {
       Keep it brief (max 3 sentences).`;
 
       const response = await ai.models.generateContent({
-        model: "gemini-pro-vision",
+        model: "gemini-2.5-flash",
         contents: prompt,
         config: {
           systemInstruction: "You are a proactive financial advisor. Be direct, helpful, and culturally relevant to India.",
@@ -414,10 +414,10 @@ async function startServer() {
   app.post('/api/ai/assistant', async (req, res) => {
     if (!ensureApiKey(res)) return;
     const { message } = req.body;
-    
+
     try {
       const chat = ai.chats.create({
-        model: "gemini-pro-vision",
+        model: "gemini-2.5-flash",
         config: {
           systemInstruction: `You are "Smart Spend Assistant", a friendly, ultra-helpful, and professional financial assistant for the Smart Spend app. 
           Your goals are to help users understand their spending, give actionable advice based on their finance data, and guide them within the app.
