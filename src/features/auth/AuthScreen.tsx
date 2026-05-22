@@ -23,9 +23,7 @@ export default function AuthScreen() {
 
   useEffect(() => {
     if (installPromptEvent) {
-      // Small timeout to let the page settle before displaying the gorgeous promo
-      const timer = setTimeout(() => setShowInstallPrompt(true), 1500);
-      return () => clearTimeout(timer);
+      setShowInstallPrompt(true);
     }
 
     const handlePromptAvailable = () => {
