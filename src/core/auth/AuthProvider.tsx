@@ -1,0 +1,81 @@
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import { User, onAuthStateChanged } from 'firebase/auth';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { auth, db as firestoreDb } from '../../firebase';
+import AuthScreen from '../../features/auth/AuthScreen';
+import { handleFirestoreError, OperationType } from '../../lib/firestoreUtils';
+
+interface AuthContextType {
+  user: User | null;
+  loading: boolean;
+  logout: () => Promise<void>;
+}
+
+const AuthContext = createContext<AuthContextType>({ 
+  user: null, 
+  loading: true, 
+  logout: async () => {} 
+});
+
+export const useAuth = () => useContext(AuthContext);
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const logout = async () => {
+    try {
+      await auth.signOut();
+      console.log("[AuthProvider] User signed out");
+    } catch (error) {
+      console.error("[AuthProvider] Sign out error:", error);
+    }
+  };
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
+      if (u) {
+        console.log(`[AuthProvider] User logged in: ${u.uid} (${u.email})`);
+        const userDocPath = `users/${u.uid}`;
+        
+        const syncUser = async () => {
+          try {
+            const userDocRef = doc(firestoreDb, userDocPath);
+            await setDoc(userDocRef, {
+              uid: u.uid,
+              email: u.email,
+              displayName: u.displayName,
+              photoURL: u.photoURL,
+              emailVerified: u.emailVerified,
+              lastLogin: serverTimestamp()
+            }, { merge: true });
+          } catch (error: any) {
+            console.error(`[AuthProvider] Failed to write to ${userDocPath}`, error);
+            // Don't throw here to avoid Uncaught Rejection
+            try { handleFirestoreError(error, OperationType.WRITE, userDocPath); } catch (e) {}
+          }
+        };
+        syncUser().catch(err => console.error("[AuthProvider] syncUser caught unhandled error:", err));
+      }
+      setUser(u);
+      setLoading(false);
+    });
+    return unsubscribe;
+  }, []);
+
+  if (loading) {
+    return <div className="flex-1 min-h-screen bg-background flex items-center justify-center">
+            <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin"></div>
+           </div>;
+  }
+
+  if (!user) {
+    return <AuthScreen />;
+  }
+
+  return (
+    <AuthContext.Provider value={{ user, loading, logout }}>
+      {children}
+    </AuthContext.Provider>
+  );
+}

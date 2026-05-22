@@ -1,0 +1,6 @@
+{
+  "name": "SmartSpend",
+  "description": "AI-powered personal finance tracker with smart insights and natural language entry.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,92 @@
+src/features/sms_detector/SmsProcessor.ts:    const fallbackResult = await this.geminiParser.parse(rawSanitized, senderTitle);
+src/features/sms_detector/GeminiTransactionParser.ts:        const text = await response.text();
+src/features/sms_detector/GeminiTransactionParser.ts:      return await response.json();
+src/features/sms_detector/GeminiTransactionParser.ts:      const response = await fetch('/api/ai/parse-transaction', {
+src/features/sms_detector/GeminiTransactionParser.ts:      const data = await this.handleResponse(response, "Gemini Parsing Error");
+src/features/sms_detector/SmsDetectorScreen.tsx:    await transactionRepo.upsert({
+src/features/sms_detector/SmsDetectorScreen.tsx:      const result = await smsProcessor.processSms(text, title);
+src/features/sms_detector/SmsDetectorScreen.tsx:          await saveTransaction(result);
+src/features/sms_detector/SmsDetectorScreen.tsx:    await saveTransaction(lastResult);
+src/features/sms_detector/SmsDetectorScreen.tsx:      const text = await navigator.clipboard.readText();
+src/features/sms_detector/SmsDetectorScreen.tsx:        await handleProcess(text, 'CLIPBOARD');
+src/features/add_expense/VoiceExpenseParser.ts:        const text = await response.text();
+src/features/add_expense/VoiceExpenseParser.ts:      return await response.json();
+src/features/add_expense/VoiceExpenseParser.ts:      const response = await fetch('/api/ai/parse-transaction', {
+src/features/add_expense/VoiceExpenseParser.ts:      const data = await this.handleResponse(response, "Gemini Parsing Error");
+src/features/add_expense/ReceiptScanner.tsx:      const result = await insightsService.scanReceipt(base64, mimeType);
+src/features/add_expense/AddExpenseScreen.tsx:      const response = await fetch('/api/ai/categorize', {
+src/features/add_expense/AddExpenseScreen.tsx:        const data = await response.json();
+src/features/add_expense/AddExpenseScreen.tsx:      await db.categories.add({
+src/features/add_expense/AddExpenseScreen.tsx:      const result = await voiceExpenseParser.parseVoiceInput(magicInput);
+src/features/add_expense/AddExpenseScreen.tsx:      await db.transactions.add({
+src/features/insights/GeminiInsightsService.ts:        const text = await response.text();
+src/features/insights/GeminiInsightsService.ts:      return await response.json();
+src/features/insights/GeminiInsightsService.ts:      const response = await fetch('/api/ai/insights', {
+src/features/insights/GeminiInsightsService.ts:      return await this.handleResponse(response, "Insights API Error");
+src/features/insights/GeminiInsightsService.ts:      const response = await fetch('/api/ai/greet', {
+src/features/insights/GeminiInsightsService.ts:      const data = await this.handleResponse(response, "Smart Greeting API Error");
+src/features/insights/GeminiInsightsService.ts:      const response = await fetch('/api/ai/parse-transaction', {
+src/features/insights/GeminiInsightsService.ts:      return await this.handleResponse(response, "Parse Transaction API Error");
+src/features/insights/GeminiInsightsService.ts:      const response = await fetch('/api/ai/scan-receipt', {
+src/features/insights/GeminiInsightsService.ts:      return await this.handleResponse(response, "Scan Receipt API Error");
+src/features/insights/InsightsScreen.tsx:      const data = await insightsService.generateInsights(
+src/features/admin/AdminRoute.tsx:       const txs = await db.transactions.toArray();
+src/features/admin/AdminAITerminal.tsx:      const response = await fetch('/api/admin/ai-controller', {
+src/features/admin/AdminAITerminal.tsx:      const data = await response.json();
+src/features/admin/AdminService.ts:    const hashBuffer = await cryptoSubtle.digest('SHA-256', msgBuffer);
+src/features/admin/AdminService.ts:    const hash = await sha256(pin);
+src/features/admin/AdminService.ts:        await this.setPin('123456');
+src/features/admin/AdminService.ts:    const hash = await sha256(pin);
+src/features/admin/AdminService.ts:      const hashedDeviceId = await sha256(deviceId + '_smartspend_salt');
+src/features/admin/AdminService.ts:      await db.adminEvents.add(event);
+src/features/money_score/GeminiScoreService.ts:        const text = await response.text();
+src/features/money_score/GeminiScoreService.ts:      return await response.json();
+src/features/money_score/GeminiScoreService.ts:      const response = await fetch('/api/ai/score-tips', {
+src/features/money_score/GeminiScoreService.ts:      return await this.handleResponse(response, "Gemini Score Service Error");
+src/features/budget/SetBudgetScreen.tsx:            await db.budgetHistory.add({
+src/features/budget/SetBudgetScreen.tsx:            await db.budgets.update(existingGlobal.id, {
+src/features/budget/SetBudgetScreen.tsx:          await db.budgets.add({
+src/features/budget/SetBudgetScreen.tsx:              await db.budgetHistory.add({
+src/features/budget/SetBudgetScreen.tsx:              await db.budgets.update(existingCat.id, {
+src/features/budget/SetBudgetScreen.tsx:            await db.budgets.add({
+src/features/budget/SetBudgetScreen.tsx:          await db.budgets.delete(existingCat.id);
+src/features/budget/SetBudgetScreen.tsx:          await setDoc(doc(firestoreDb, userDocPath), {
+src/features/receipt_scanner/ReceiptScannerScreen.tsx:      const stream = await navigator.mediaDevices.getUserMedia({ 
+src/features/receipt_scanner/ReceiptScannerScreen.tsx:        await new Promise(resolve => setTimeout(resolve, 3500));
+src/features/receipt_scanner/ReceiptScannerScreen.tsx:      const data = await receiptScannerService.scanReceipt(dataUrl, mimeType);
+src/features/receipt_scanner/GeminiReceiptScanner.ts:        errorData = await response.json();
+src/features/receipt_scanner/GeminiReceiptScanner.ts:      const response = await fetch('/api/ai/scan-receipt', {
+src/features/receipt_scanner/GeminiReceiptScanner.ts:      const parsedData = await this.handleResponse(response, "Receipt Scanning Error");
+src/features/receipt_scanner/ReceiptResultsScreen.tsx:      const { db } = await import('../../db/database');
+src/features/receipt_scanner/ReceiptResultsScreen.tsx:        await db.transactions.bulkAdd(newTxs);
+src/features/receipt_scanner/ReceiptResultsScreen.tsx:        await db.transactions.add({
+src/features/dashboard/DashboardScreen.tsx:          const response = await fetch('/api/ai/budget-alert', {
+src/features/dashboard/DashboardScreen.tsx:            const data = await response.json();
+src/features/dashboard/DashboardScreen.tsx:      const data = await insightsService.parseTransaction(magicInput);
+src/features/dashboard/DashboardScreen.tsx:        await db.transactions.add({
+src/features/dashboard/DashboardScreen.tsx:    await db.transactions.update(id, { isDeleted: 1 });
+src/features/transactions/TransactionsScreen.tsx:      await db.transactions.update(id, { isDeleted: 1 });
+src/features/auth/AuthScreen.tsx:      await signInWithPopup(auth, provider);
+src/features/auth/AuthScreen.tsx:        await createUserWithEmailAndPassword(auth, email, password);
+src/features/auth/AuthScreen.tsx:        await signInWithEmailAndPassword(auth, email, password);
+src/core/auth/AuthProvider.tsx:      await auth.signOut();
+src/core/auth/AuthProvider.tsx:            await setDoc(userDocRef, {
+src/db/database.ts:      await this.seedDefaultCategories();
+src/db/database.ts:    await this.categories.bulkAdd(defaultCategories);
+src/db/repositories/CategoryRepository.ts:      const data = await db.categories.orderBy('sortOrder').toArray();
+src/db/repositories/CategoryRepository.ts:      await db.categories.add(category);
+src/db/repositories/InsightsCacheRepository.ts:      const data = await db.insightsCache.where('period').equals(period).toArray();
+src/db/repositories/InsightsCacheRepository.ts:      await db.insightsCache.put(insight); // .put in IndexedDb upserts (insert/replace)
+src/db/repositories/InsightsCacheRepository.ts:      const expiredDocs = await db.insightsCache.filter(i => i.expiresAt <= now).toArray();
+src/db/repositories/InsightsCacheRepository.ts:      await db.insightsCache.bulkDelete(expiredIds);
+src/db/repositories/TransactionRepository.ts:      const data = await db.transactions
+src/db/repositories/TransactionRepository.ts:      const txs = await db.transactions
+src/db/repositories/TransactionRepository.ts:      const txs = await db.transactions
+src/db/repositories/TransactionRepository.ts:      const txs = await db.transactions
+src/db/repositories/TransactionRepository.ts:      await db.transactions.update(id, { 
+src/db/repositories/TransactionRepository.ts:      await db.transactions.put(transaction);
+src/db/repositories/MoneyScoreHistoryRepository.ts:      const data = await db.moneyScoreHistory
+src/db/repositories/MoneyScoreHistoryRepository.ts:      await db.moneyScoreHistory.add(score);
+src/db/repositories/BudgetRepository.ts:      const activeBudgets = await db.budgets.filter(b => b.isActive === 1).toArray();
+src/db/repositories/BudgetRepository.ts:      await db.budgets.put(budget);
+src/lib/firestoreUtils.ts:    await getDocFromServer(doc(db, 'test', 'connection'));

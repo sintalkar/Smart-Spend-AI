@@ -1,0 +1,160 @@
+import { useState, useEffect, useRef } from 'react';
+import { Outlet, Link, useLocation } from 'react-router-dom';
+import { Home, ListOrdered, Plus, PieChart, Shield, Mic, Camera, ArrowRightLeft, Edit3, X } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import clsx from 'clsx';
+import { VoiceEntryBottomSheet } from '../../features/add_expense/VoiceEntryBottomSheet';
+import ReceiptScannerScreen from '../../features/receipt_scanner/ReceiptScannerScreen';
+import { adminService, AdminFeatureToggles } from '../../features/admin/AdminService';
+import { AiAssistant } from '../../features/ai_assistant/AiAssistant';
+import { PwaInstallPrompt } from '../../features/pwa/PwaInstallPrompt';
+
+export function Layout() {
+  const location = useLocation();
+  const [isFabOpen, setIsFabOpen] = useState(false);
+  const [isVoiceSheetOpen, setIsVoiceSheetOpen] = useState(false);
+  const [isReceiptScannerOpen, setIsReceiptScannerOpen] = useState(false);
+  const [toggles, setToggles] = useState<AdminFeatureToggles>(adminService.getToggles());
+  const openedOnce = useRef(false);
+
+  useEffect(() => {
+    if (!openedOnce.current) {
+      adminService.logEvent('APP_OPEN');
+      openedOnce.current = true;
+    }
+  }, []);
+
+  useEffect(() => {
+    return adminService.subscribe(() => {
+      setToggles(adminService.getToggles());
+    });
+  }, []);
+
+  const navItems = [
+    { path: '/', icon: Home, label: 'Home' },
+    { path: '/transactions', icon: ListOrdered, label: 'History' },
+    { isFab() { return true; }, path: '#', icon: Plus, label: '' },
+    { path: '/insights', icon: PieChart, label: 'Insights' },
+    { path: '/score', icon: Shield, label: 'Score' },
+  ];
+
+  const fabOptions = [
+    { icon: Edit3, label: 'Manual Entry', color: 'bg-primary', onClick: () => { adminService.logEvent('MANUAL_ENTRY'); window.location.href='/add'; }, enabled: true },
+    { icon: Mic, label: 'Voice', color: 'bg-secondary', onClick: () => { adminService.logEvent('VOICE_ENTRY_USED'); setIsVoiceSheetOpen(true); }, enabled: toggles.voiceEntry },
+    { icon: Camera, label: 'Receipt', color: 'bg-blue-500', onClick: () => { adminService.logEvent('RECEIPT_SCANNED'); setIsReceiptScannerOpen(true); }, enabled: toggles.receiptScanner },
+    { icon: ArrowRightLeft, label: 'Transfer', color: 'bg-purple-500', onClick: () => {}, enabled: true },
+  ];
+
+  // Close FAB when navigating
+  useEffect(() => {
+    setIsFabOpen(false);
+  }, [location.pathname]);
+
+  return (
+    <div className="flex flex-col h-screen w-full relative overflow-hidden bg-background md:mx-auto md:max-w-2xl lg:max-w-4xl shadow-2xl">
+      <main className="flex-1 overflow-y-auto pb-24 md:pb-6 no-scrollbar w-full h-full">
+        <Outlet />
+      </main>
+
+      {/* FAB Overlay */}
+      <AnimatePresence>
+        {isFabOpen && (
+          <>
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-background/80 backdrop-blur-sm z-40"
+              onClick={() => setIsFabOpen(false)}
+            />
+            <motion.div 
+              initial={{ y: 200, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 200, opacity: 0 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="absolute bottom-28 left-6 right-6 bg-surface border border-white/10 rounded-3xl p-6 z-50 shadow-2xl glass-card"
+            >
+              <h3 className="title-bold text-xl mb-4">Quick Add</h3>
+              <div className="grid grid-cols-4 gap-4">
+                {fabOptions.filter(o => o.enabled).map((opt, i) => (
+                  <motion.div 
+                    key={i}
+                    initial={{ scale: 0.8, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ delay: i * 0.05 }}
+                    className="flex flex-col items-center gap-2 cursor-pointer"
+                    onClick={() => {
+                      setIsFabOpen(false);
+                      opt.onClick();
+                    }}
+                  >
+                    <div className={clsx("w-14 h-14 rounded-2xl flex items-center justify-center text-white shadow-lg", opt.color)}>
+                      <opt.icon size={24} />
+                    </div>
+                    <span className="text-[10px] font-medium text-gray-300 text-center">{opt.label}</span>
+                  </motion.div>
+                ))}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      <nav className="absolute bottom-6 left-6 right-6 h-16 glass rounded-[2rem] px-4 flex justify-between items-center z-50 shadow-2xl border border-white/20">
+        {navItems.map((item, index) => {
+          if (item.isFab?.()) {
+            return (
+              <div key="fab" className="relative -top-2">
+                <motion.button
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => setIsFabOpen(!isFabOpen)}
+                  className="w-14 h-14 rounded-2xl bg-primary flex items-center justify-center text-white shadow-xl shadow-primary/30 z-50 border border-white/20"
+                  animate={{ rotate: isFabOpen ? 45 : 0 }}
+                >
+                  {isFabOpen ? <X size={24} /> : <Plus size={24} />}
+                </motion.button>
+              </div>
+            );
+          }
+
+          const isActive = location.pathname === item.path;
+          
+          return (
+            <Link
+              key={item.path}
+              to={item.path}
+              className={clsx(
+                "relative flex items-center justify-center w-12 h-12 transition-all duration-300 rounded-xl",
+                isActive ? "text-primary bg-primary/20 shadow-[0_0_15px_rgba(99,102,241,0.2)]" : "text-white/40 hover:text-white/60 hover:bg-white/10"
+              )}
+            >
+              <item.icon size={20} strokeWidth={isActive ? 2.5 : 2} />
+              
+              {isActive && (
+                <motion.div
+                  layoutId="nav-dot"
+                  className="absolute -bottom-1.5 w-1 h-1 bg-primary rounded-full shadow-[0_0_8px_var(--color-primary)]"
+                />
+              )}
+            </Link>
+          );
+        })}
+      </nav>
+
+      <VoiceEntryBottomSheet 
+        isOpen={isVoiceSheetOpen} 
+        onClose={() => setIsVoiceSheetOpen(false)} 
+        onAdded={() => {
+           // Provide haptic feedback or simple refresh if needed here
+        }}
+      />
+
+      {isReceiptScannerOpen && (
+        <ReceiptScannerScreen onClose={() => setIsReceiptScannerOpen(false)} />
+      )}
+      <AiAssistant />
+      <PwaInstallPrompt />
+    </div>
+  );
+}

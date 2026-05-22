@@ -1,0 +1,170 @@
+import { adminService } from '../admin/AdminService';
+
+export interface SmartSuggestion {
+  title: string;
+  description: string;
+  estimated_savings_per_month: number;
+  difficulty: 'easy' | 'medium' | 'hard';
+  icon_emoji: string;
+}
+
+export interface InsightsData {
+  summary: string;
+  suggestions: SmartSuggestion[];
+}
+
+export class GeminiInsightsService {
+  private async handleResponse(response: Response, errorMessage: string) {
+    if (!response.ok) {
+      let errorData: any = {};
+      try {
+        const text = await response.text();
+        try {
+          errorData = JSON.parse(text);
+        } catch (e) {
+          errorData = { error: text || `HTTP ${response.status}` };
+        }
+      } catch (e) { 
+        errorData = { error: `HTTP ${response.status}` };
+      }
+
+      if (response.status === 403 || errorData.error === 'MISSING_API_KEY') {
+        throw new Error("API_KEY_MISSING");
+      }
+      
+      console.warn(`${errorMessage}:`, response.status, errorData);
+      throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+    }
+    
+    try {
+      return await response.json();
+    } catch (e) {
+      console.warn("JSON Parse Error in handleResponse:", e);
+      throw new Error("Invalid response format from server");
+    }
+  }
+
+  public async generateInsights(
+    period: string,
+    totalSpent: number,
+    income: number,
+    categoryBreakdown: Record<string, number>,
+    previousPeriodBreakdown: Record<string, number>
+  ): Promise<InsightsData | null> {
+    adminService.logEvent('INSIGHT_GENERATED');
+
+    try {
+      const response = await fetch('/api/ai/insights', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          period,
+          totalSpent,
+          income,
+          categoryBreakdown,
+          previousPeriodBreakdown
+        })
+      });
+
+      return await this.handleResponse(response, "Insights API Error");
+    } catch (e: any) {
+      if (e.message === "API_KEY_MISSING") return null;
+      console.warn("Insights API Error", e);
+      return null;
+    }
+  }
+
+  private greetingCache: { text: string, timestamp: number } | null = null;
+  private GREETING_CACHE_TTL = 1000 * 60 * 30; // 30 minutes cache
+
+  public async getSmartGreeting(userName: string, totalBalance: number, monthlySpent: number, budgetLimit: number): Promise<string> {
+    // Check cache
+    if (this.greetingCache && (Date.now() - this.greetingCache.timestamp < this.GREETING_CACHE_TTL)) {
+      return this.greetingCache.text;
+    }
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 12000); // 12s timeout
+
+    try {
+      const response = await fetch('/api/ai/greet', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userName, totalBalance, monthlySpent, budgetLimit }),
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      const data = await this.handleResponse(response, "Smart Greeting API Error");
+      
+      // Update cache
+      this.greetingCache = {
+        text: data.greeting,
+        timestamp: Date.now()
+      };
+      
+      return data.greeting;
+    } catch (e: any) {
+      clearTimeout(timeoutId);
+      if (e.name === 'AbortError') {
+        return `Hi ${userName}, how is your day going?`;
+      }
+      if (e.message === "API_KEY_MISSING") {
+        return `Setup AI Key in Settings to get smart greetings ✨`;
+      }
+      // If it's the fallback greeting from server or any other non-AI response, it won't be "API_KEY_MISSING"
+      // but we still want to be silent if it's a known non-critical failure
+      if (e.message?.includes('403')) {
+        return `Hi ${userName}, ready to track some spends?`;
+      }
+      
+      console.warn("Smart Greeting fetch failed:", e.message);
+      return `Hi ${userName}, let's track your spends!`;
+    }
+  }
+
+  public async parseTransaction(text: string): Promise<any | null> {
+    try {
+      const response = await fetch('/api/ai/parse-transaction', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text })
+      });
+      
+      return await this.handleResponse(response, "Parse Transaction API Error");
+    } catch (e: any) {
+      if (e.message === "API_KEY_MISSING") {
+        throw new Error("Gemini API key is missing. Please add it in 'Settings > Secrets'.");
+      }
+      console.warn("Parse Transaction API Error", e);
+      throw e;
+    }
+  }
+
+  public async scanReceipt(imageData: string, mimeType: string): Promise<any> {
+    try {
+      const response = await fetch('/api/ai/scan-receipt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: imageData, mimeType })
+      });
+      
+      return await this.handleResponse(response, "Scan Receipt API Error");
+    } catch (e: any) {
+      if (e.message === "API_KEY_MISSING") {
+        // Return dummy data for demo if key is missing
+        return {
+          merchant_name: "Demo Merchant (Setup AI Key)",
+          date: new Date().toISOString(),
+          items: [{ name: "Demo Item", quantity: 1, total_price: 499, category: "shopping" }],
+          total: 499,
+          confidence: "Low (Demo Mode)"
+        };
+      }
+      console.warn("Scan Receipt API Error", e);
+      throw e;
+    }
+  }
+}
+
+export const insightsService = new GeminiInsightsService();

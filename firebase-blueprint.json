@@ -1,0 +1,97 @@
+{
+  "entities": {
+    "Transaction": {
+      "title": "Transaction",
+      "description": "A financial transaction representing income or expense",
+      "type": "object",
+      "properties": {
+        "amount": { "type": "number" },
+        "type": { "type": "string", "enum": ["DEBIT", "CREDIT"] },
+        "categoryId": { "type": "string" },
+        "merchantName": { "type": "string" },
+        "merchantUpiId": { "type": "string" },
+        "note": { "type": "string" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "dateTime": { "type": "number" },
+        "source": { "type": "string" },
+        "rawSmsText": { "type": "string" },
+        "bankName": { "type": "string" },
+        "accountLast4": { "type": "string" },
+        "upiRefId": { "type": "string" },
+        "receiptImagePath": { "type": "string" },
+        "isConfirmed": { "type": "boolean" },
+        "isRecurring": { "type": "boolean" },
+        "currency": { "type": "string" },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" },
+        "isDeleted": { "type": "boolean" }
+      },
+      "required": ["amount", "type", "categoryId", "dateTime", "source", "currency", "createdAt", "updatedAt", "isDeleted", "isConfirmed", "isRecurring"]
+    },
+    "Category": {
+      "title": "Category",
+      "description": "Category for a transaction",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "icon": { "type": "string" },
+        "color": { "type": "string" },
+        "type": { "type": "string", "enum": ["EXPENSE", "INCOME"] },
+        "isCustom": { "type": "boolean" },
+        "parentId": { "type": "string" },
+        "budgetLimit": { "type": "number" },
+        "sortOrder": { "type": "number" }
+      },
+      "required": ["name", "icon", "color", "type", "isCustom", "sortOrder"]
+    },
+    "Budget": {
+      "title": "Budget",
+      "description": "Budget limit for a category or overall",
+      "type": "object",
+      "properties": {
+        "categoryId": { "type": "string" },
+        "amount": { "type": "number" },
+        "period": { "type": "string", "enum": ["WEEKLY", "MONTHLY", "YEARLY"] },
+        "startDate": { "type": "number" },
+        "endDate": { "type": "number" },
+        "alertThreshold": { "type": "number" },
+        "isActive": { "type": "boolean" }
+      },
+      "required": ["amount", "period", "startDate", "endDate", "alertThreshold", "isActive"]
+    },
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "User profile document",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "lastLogin": { "type": "object", "description": "Firestore server timestamp" },
+        "emailVerified": { "type": "boolean" },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["uid", "email"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "User profiles"
+    },
+    "/users/{userId}/transactions/{transactionId}": {
+      "schema": { "$ref": "#/entities/Transaction" },
+      "description": "Transactions belonging to a user"
+    },
+    "/users/{userId}/categories/{categoryId}": {
+      "schema": { "$ref": "#/entities/Category" },
+      "description": "Custom categories belonging to a user"
+    },
+    "/users/{userId}/budgets/{budgetId}": {
+      "schema": { "$ref": "#/entities/Budget" },
+      "description": "Budgets belonging to a user"
+    }
+  }
+}
