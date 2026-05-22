@@ -26,6 +26,17 @@ export class MoneyScoreCalculator {
     totalBudgets: number,
     previousScores: number[]
   ): MoneyScoreResult {
+    // If there are no transactions at all, score is 0
+    if (totalSpent === 0 && totalIncome === 0) {
+      return {
+        total: 0,
+        breakdown: { savingsRate: 0, budgetAdherence: 0, spendingConsistency: 0, incomeExpenseRatio: 0, categoryDiversity: 0, monthlyStreak: 0, total: 0 },
+        grade: 'Critical',
+        trend: 0,
+        percentile: 0
+      };
+    }
+
     // 1. Savings Rate (30 pts)
     let savingsRateScore = 0;
     const savingsRate = totalIncome > 0 ? ((totalIncome - totalSpent) / totalIncome) * 100 : 0;
@@ -39,9 +50,6 @@ export class MoneyScoreCalculator {
     let budgetScore = 0;
     if (totalBudgets > 0) {
       budgetScore = Math.floor((budgetsMet / totalBudgets) * 25);
-    } else {
-      // Default to mid if no budgets set
-      budgetScore = 15;
     }
 
     // 3. Spending Consistency (15 pts) - Lower variance is better
@@ -127,6 +135,17 @@ export class MoneyScoreCalculator {
     expenses: number,
     previousScores: number[] = []
   ): MoneyScoreResult {
+    // If there are no transactions at all, score is 0
+    if (creditedMoney === 0 && debitedMoney === 0 && expenses === 0) {
+      return {
+        total: 0,
+        breakdown: { savingsRate: 0, budgetAdherence: 0, spendingConsistency: 0, incomeExpenseRatio: 0, categoryDiversity: 0, monthlyStreak: 0, total: 0 },
+        grade: 'Critical',
+        trend: 0,
+        percentile: 0
+      };
+    }
+
     // 1. Savings Rate Score (out of 30 pts)
     let savingsRateScore = 0;
     const savingsRate = creditedMoney > 0 ? ((creditedMoney - expenses) / creditedMoney) * 100 : 0;
@@ -137,8 +156,7 @@ export class MoneyScoreCalculator {
     else if (savingsRate > 0) savingsRateScore = 5;
 
     // 2. Budget Adherence Score (out of 25 pts)
-    // Debited money indicates general outflows. If outflows are low relative to credited money, score is higher.
-    let budgetScore = 25;
+    let budgetScore = 0;
     if (creditedMoney > 0) {
       const debitRatio = debitedMoney / creditedMoney;
       if (debitRatio <= 0.1) budgetScore = 25;
@@ -146,18 +164,13 @@ export class MoneyScoreCalculator {
       else if (debitRatio <= 0.5) budgetScore = 15;
       else if (debitRatio <= 0.8) budgetScore = 8;
       else budgetScore = 3;
-    } else {
-      if (debitedMoney > 0) budgetScore = 0;
     }
 
     // 3. Spending Consistency Score (out of 15 pts)
-    // Dynamic variance estimator based on overall expense control.
-    let consistencyScore = 15;
+    let consistencyScore = 0;
     if (creditedMoney > 0) {
       const expenseRatio = expenses / creditedMoney;
       consistencyScore = Math.max(0, Math.floor((1 - expenseRatio) * 15));
-    } else {
-      if (expenses > 0) consistencyScore = 0;
     }
 
     // 4. Income/Expense Ratio Score (out of 15 pts)
@@ -167,15 +180,12 @@ export class MoneyScoreCalculator {
       if (ratio <= 0.6) ratioScore = 15;
       else if (ratio <= 0.8) ratioScore = 10;
       else if (ratio <= 1.0) ratioScore = 5;
-    } else {
-      if (expenses === 0) ratioScore = 15;
     }
 
     // 5. Category Diversity Score (out of 10 pts)
-    // Proportional mock spread scaled to expenses
-    let diversityScore = 8;
-    if (expenses > 0) {
-      diversityScore = Math.max(2, Math.min(10, Math.floor(10 - (expenses / (creditedMoney || 1)) * 3)));
+    let diversityScore = 0;
+    if (expenses > 0 && creditedMoney > 0) {
+      diversityScore = Math.max(2, Math.min(10, Math.floor(10 - (expenses / creditedMoney) * 3)));
     }
 
     // 6. Monthly Streak Score (out of 5 pts)
