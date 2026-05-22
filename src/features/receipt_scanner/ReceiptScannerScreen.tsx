@@ -291,7 +291,7 @@ export default function ReceiptScannerScreen({ onClose }: { onClose?: () => void
                 >
                  <h2 className="title-bold text-2xl mb-2 text-white">Analyzing Receipt</h2>
                  <p className="text-gray-400 text-sm italic">
-                   Gemini AI is identifying items and prices...
+                   Smart AI is identifying items and prices...
                  </p>
                </motion.div>
                
