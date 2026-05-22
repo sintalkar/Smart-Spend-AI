@@ -54,6 +54,16 @@ async function startServer() {
     }
   });
 
+  const parseAIJsonResponse = (responseText: string) => {
+    let cleanText = responseText || "";
+    if (cleanText.includes("```json")) {
+      cleanText = cleanText.replace(/```json/g, "").replace(/```/g, "").trim();
+    } else if (cleanText.includes("```")) {
+      cleanText = cleanText.replace(/```/g, "").trim();
+    }
+    return JSON.parse(cleanText);
+  };
+
   const callGeminiWithRetry = async <T>(fn: () => Promise<T>): Promise<T> => {
     const MAX_RETRIES = 5;
     let delay = 2000;
@@ -139,7 +149,7 @@ async function startServer() {
         }
       });
 
-      res.json(JSON.parse(response.text));
+      res.json(parseAIJsonResponse(response.text));
     } catch (error: any) {
       console.warn("[Insights Error]", error?.message || "Unknown error");
       // Provide generic useful insight as fallback if AI fails due to high demand
@@ -196,7 +206,7 @@ async function startServer() {
         }
       });
 
-      res.json(JSON.parse(response.text));
+      res.json(parseAIJsonResponse(response.text));
     } catch (error: any) {
       console.warn("[Parse Error]", error?.message || "Unknown error");
       res.json({ error: "Failed to automatically parse. Please enter these details manually." });
@@ -228,7 +238,7 @@ async function startServer() {
         }
       });
 
-      res.json(JSON.parse(response.text));
+      res.json(parseAIJsonResponse(response.text));
     } catch (error: any) {
       console.warn("[Score Tips Error]", error?.message || "Unknown error");
       // Provide generic useful tips as fallback if AI fails due to high demand or other errors
@@ -319,13 +329,7 @@ async function startServer() {
       }));
 
       console.log("[Receipt Scan] Received response from AI model.");
-      let responseText = response.text || "";
-      if (responseText.includes("```json")) {
-        responseText = responseText.replace(/```json/g, "").replace(/```/g, "").trim();
-      } else if (responseText.includes("```")) {
-        responseText = responseText.replace(/```/g, "").trim();
-      }
-      res.json(JSON.parse(responseText));
+      res.json(parseAIJsonResponse(response.text));
     } catch (error: any) {
       console.error("[Receipt Scan Error] Exception caught:", error);
       res.json({ error: "Failed to scan receipt. Please enter the details manually." });
@@ -355,7 +359,7 @@ async function startServer() {
         }
       });
 
-      res.json(JSON.parse(response.text));
+      res.json(parseAIJsonResponse(response.text));
     } catch (error) {
       res.status(500).json({ categoryId: "other", confidence: 0 });
     }
