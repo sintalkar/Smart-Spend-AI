@@ -66,10 +66,6 @@ export default function DashboardScreen() {
   
   const { user, logout } = useAuth();
   const [smartGreeting, setSmartGreeting] = useState<string | null>(null);
-  const [isMagicEntryOpen, setIsMagicEntryOpen] = useState(false);
-  const [magicInput, setMagicInput] = useState('');
-  const [isParsing, setIsParsing] = useState(false);
-  const [magicError, setMagicError] = useState<string | null>(null);
   const [isResetting, setIsResetting] = useState(false);
   
   const budgets = useLiveQuery(() => db.budgets.toArray()) || [];
@@ -288,41 +284,6 @@ export default function DashboardScreen() {
       if (timeoutId) clearTimeout(timeoutId);
     };
   }, [user?.uid, totalBalance, monthlySpent.total, budgetLimit]);
-
-  const handleMagicEntry = async () => {
-    if (!magicInput.trim()) return;
-    setIsParsing(true);
-    setMagicError(null);
-    try {
-      const data = await insightsService.parseTransaction(magicInput);
-      if (data && data.amount > 0) {
-        await db.transactions.add({
-          id: crypto.randomUUID(),
-          amount: data.amount,
-          note: data.description || magicInput,
-          merchantName: data.merchant,
-          categoryId: data.categoryId || 'other',
-          type: data.type || TransactionType.DEBIT,
-          dateTime: data.dateTime || Date.now(),
-          tags: [],
-          source: 'ai_magic',
-          isConfirmed: 1,
-          isRecurring: 0,
-          currency: 'INR',
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-          isDeleted: 0
-        });
-        setMagicInput('');
-        setIsMagicEntryOpen(false);
-      }
-    } catch (e: any) {
-      console.error(e);
-      setMagicError(e.message || "Failed to process transaction");
-    } finally {
-      setIsParsing(false);
-    }
-  };
 
   const handleSwipeDelete = async (id: string) => {
     try {
@@ -657,104 +618,6 @@ export default function DashboardScreen() {
         </AnimatePresence>
       </div>
 
-      {/* Magic Entry Button */}
-      <motion.button 
-        whileHover={{ scale: 1.02 }}
-        whileTap={{ scale: 0.98 }}
-        onClick={() => setIsMagicEntryOpen(true)}
-        className="w-full mb-10 glass-card rounded-[2rem] p-5 flex items-center gap-5 group relative overflow-hidden"
-      >
-        <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-        <div className="w-14 h-14 rounded-2xl bg-primary text-white flex items-center justify-center shadow-xl shadow-primary/40 relative z-10">
-          <Sparkles size={24} className="animate-pulse" />
-        </div>
-        <div className="flex-1 text-left relative z-10">
-          <p className="text-[10px] text-primary font-black uppercase tracking-[0.2em] mb-1">Xpense Magic AI</p>
-          <p className="text-sm text-white font-bold tracking-tight">"Paid ₹400 for movie tickets..."</p>
-        </div>
-        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-all relative z-10">
-          <Mic size={18} />
-        </div>
-      </motion.button>
-
-      {/* Magic Entry Modal */}
-      <AnimatePresence>
-        {isMagicEntryOpen && (
-          <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsMagicEntryOpen(false)}
-              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
-            />
-            <motion.div 
-              initial={{ y: '100%' }}
-              animate={{ y: 0 }}
-              exit={{ y: '100%' }}
-              className="relative w-full max-w-lg bg-surface border border-white/10 rounded-t-[32px] sm:rounded-[32px] p-6 shadow-2xl overflow-hidden"
-            >
-              <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 blur-[80px] rounded-full -z-10" />
-              
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-primary/20 flex items-center justify-center text-primary">
-                    <Sparkles size={20} />
-                  </div>
-                  <h3 className="text-xl font-bold text-white">Magic Entry</h3>
-                </div>
-                <button 
-                  onClick={() => setIsMagicEntryOpen(false)}
-                  className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-gray-500"
-                >
-                  <ChevronRight size={20} className="rotate-90" />
-                </button>
-              </div>
-
-              <div className="relative mb-6">
-                <textarea 
-                  autoFocus
-                  value={magicInput}
-                  onChange={(e) => {
-                    setMagicInput(e.target.value);
-                    if (magicError) setMagicError(null);
-                  }}
-                  placeholder="E.g. I spent 200 on cold coffee or earned 5000 from freelance"
-                  className="w-full h-32 bg-black/20 border border-white/10 rounded-2xl p-4 text-white placeholder:text-gray-600 outline-none focus:border-primary/50 transition-colors resize-none"
-                />
-                <AnimatePresence>
-                  {magicError && (
-                    <motion.div 
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -10 }}
-                      className="mt-2 p-3 bg-error/10 border border-error/20 rounded-xl flex items-center gap-2 text-error text-[10px] font-bold uppercase tracking-wider"
-                    >
-                      <AlertCircle size={14} />
-                      {magicError}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-
-              <button 
-                onClick={handleMagicEntry}
-                disabled={!magicInput.trim() || isParsing}
-                className="w-full h-16 rounded-3xl bg-primary text-white font-bold text-lg flex items-center justify-center gap-2 shadow-lg shadow-primary/20 disabled:opacity-50"
-              >
-                {isParsing ? (
-                  <Activity className="animate-spin" size={20} />
-                ) : (
-                  <>
-                    <Sparkles size={20} />
-                    Process with AI
-                  </>
-                )}
-              </button>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
 
       {/* Add Balance Modal */}
       <AnimatePresence>
