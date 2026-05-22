@@ -95,7 +95,7 @@ export default function TransactionsScreen() {
     doc.setTextColor(255, 71, 87); // Red for expense
     doc.text('Regular Expenses', 20, 62);
     doc.setFontSize(14);
-    doc.text(`₹${totalExpense.toLocaleString()}`, 20, 72);
+    doc.text(`Rs. ${totalExpense.toLocaleString()}`, 20, 72);
 
     // Savings Box
     doc.setFillColor(245, 255, 245);
@@ -104,7 +104,7 @@ export default function TransactionsScreen() {
     doc.setTextColor(46, 213, 115); // Green for savings
     doc.text('Saved Money', 115, 62);
     doc.setFontSize(14);
-    doc.text(`₹${(savings > 0 ? savings : 0).toLocaleString()}`, 115, 72);
+    doc.text(`Rs. ${(savings > 0 ? savings : 0).toLocaleString()}`, 115, 72);
 
     doc.setTextColor(0, 0, 0);
     doc.setFontSize(12);
@@ -115,7 +115,7 @@ export default function TransactionsScreen() {
       (categoryNames[t.categoryId] || t.categoryId).toUpperCase(),
       t.note || '-',
       t.source.toUpperCase(),
-      t.type === TransactionType.CREDIT ? `+ ₹${t.amount.toLocaleString()}` : `- ₹${t.amount.toLocaleString()}`
+      t.type === TransactionType.CREDIT ? `+ Rs. ${t.amount.toLocaleString()}` : `- Rs. ${t.amount.toLocaleString()}`
     ]);
 
     autoTable(doc, {

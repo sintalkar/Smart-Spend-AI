@@ -533,10 +533,11 @@ export default function AddExpenseScreen() {
           <div className="fixed bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-background via-background to-transparent z-40">
             <button 
               type="submit" 
-              className="w-full max-w-2xl mx-auto block bg-primary text-white font-black uppercase tracking-[0.2em] text-sm p-6 rounded-[2rem] shadow-2xl shadow-primary/40 hover:scale-[1.02] active:scale-[0.98] transition-all relative overflow-hidden group"
+              className="w-full max-w-2xl mx-auto flex items-center justify-center gap-2 bg-primary text-white font-black uppercase tracking-[0.2em] text-sm p-6 rounded-[2rem] shadow-2xl shadow-primary/40 hover:scale-[1.02] active:scale-[0.98] transition-all relative overflow-hidden group"
             >
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
-              Complete Transaction
+              <Plus size={20} className="relative z-10" />
+              <span className="relative z-10">Add Transaction</span>
             </button>
           </div>
         </form>

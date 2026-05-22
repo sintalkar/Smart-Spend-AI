@@ -79,7 +79,8 @@ export default function MoneyScoreScreen() {
   useEffect(() => {
     if (!user || allTxs.length === 0) return;
     
-    let totalCredited = 0;
+    const initialBalance = Number(localStorage.getItem('initial_balance') || 0);
+    let totalCredited = initialBalance;
     let totalDebited = 0;
     
     allTxs.forEach(t => {
