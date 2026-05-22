@@ -39,6 +39,19 @@ export class GeminiScoreService {
   }
 
   public async getImprovementTips(score: number, breakdown: ScoreBreakdown): Promise<ScoreImprovementTip[]> {
+    const cacheKey = `ai_score_tips_${score}`;
+    const storedCache = localStorage.getItem(cacheKey);
+    const now = Date.now();
+    
+    if (storedCache) {
+      try {
+        const parsed = JSON.parse(storedCache);
+        if (now - parsed.timestamp < 1000 * 60 * 60 * 24) { // 24 hours cache
+          return parsed.tips;
+        }
+      } catch (e) {}
+    }
+
     try {
       const response = await fetch(`${window.location.origin}/api/ai/score-tips`, {
         method: 'POST',
@@ -46,7 +59,9 @@ export class GeminiScoreService {
         body: JSON.stringify({ score, breakdown })
       });
       
-      return await this.handleResponse(response, "Gemini Score Service Error");
+      const data = await this.handleResponse(response, "Gemini Score Service Error");
+      localStorage.setItem(cacheKey, JSON.stringify({ tips: data, timestamp: now }));
+      return data;
     } catch (e: unknown) {
       const error = e instanceof Error ? e : new Error(String(e));
       console.warn("Gemini Score Service Error logs:", error);

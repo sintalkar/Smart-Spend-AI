@@ -78,9 +78,16 @@ export class GeminiInsightsService {
   private GREETING_CACHE_TTL = 1000 * 60 * 30; // 30 minutes cache
 
   public async getSmartGreeting(userName: string, totalBalance: number, monthlySpent: number, budgetLimit: number): Promise<string> {
-    // Check cache
-    if (this.greetingCache && (Date.now() - this.greetingCache.timestamp < this.GREETING_CACHE_TTL)) {
-      return this.greetingCache.text;
+    // Check memory and local storage cache
+    const now = Date.now();
+    const storedCache = localStorage.getItem('ai_greeting_cache');
+    if (storedCache) {
+      try {
+        const parsed = JSON.parse(storedCache);
+        if (now - parsed.timestamp < this.GREETING_CACHE_TTL) {
+          return parsed.text;
+        }
+      } catch (e) {}
     }
 
     const controller = new AbortController();
@@ -98,10 +105,8 @@ export class GeminiInsightsService {
       const data = await this.handleResponse(response, "Smart Greeting API Error");
       
       // Update cache
-      this.greetingCache = {
-        text: data.greeting,
-        timestamp: Date.now()
-      };
+      this.greetingCache = { text: data.greeting, timestamp: Date.now() };
+      localStorage.setItem('ai_greeting_cache', JSON.stringify(this.greetingCache));
       
       return data.greeting;
     } catch (e: any) {
