@@ -1,12 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { Home, ListOrdered, Plus, PieChart, Shield, Mic, Camera, ArrowRightLeft, Edit3, X, Coins, Sparkles, AlertCircle } from 'lucide-react';
+import { Home, ListOrdered, Plus, PieChart, Shield, Mic, Camera, Edit3, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import clsx from 'clsx';
 import { VoiceEntryBottomSheet } from '../../features/add_expense/VoiceEntryBottomSheet';
 import ReceiptScannerScreen from '../../features/receipt_scanner/ReceiptScannerScreen';
 import { adminService, AdminFeatureToggles } from '../../features/admin/AdminService';
-import { AiAssistant } from '../../features/ai_assistant/AiAssistant';
 import { PwaInstallPrompt } from '../../features/pwa/PwaInstallPrompt';
 import { db as firestoreDb } from '../../firebase';
 import { doc, setDoc } from 'firebase/firestore';
@@ -103,7 +102,6 @@ export function Layout() {
     { icon: Edit3, label: 'Manual Entry', color: 'bg-primary', onClick: () => { adminService.logEvent('MANUAL_ENTRY'); window.location.href='/add'; }, enabled: true },
     { icon: Mic, label: 'Voice', color: 'bg-secondary', onClick: () => { adminService.logEvent('VOICE_ENTRY_USED'); setIsVoiceSheetOpen(true); }, enabled: toggles.voiceEntry },
     { icon: Camera, label: 'Receipt', color: 'bg-blue-500', onClick: () => { adminService.logEvent('RECEIPT_SCANNED'); setIsReceiptScannerOpen(true); }, enabled: toggles.receiptScanner },
-    { icon: ArrowRightLeft, label: 'Transfer', color: 'bg-purple-500', onClick: () => {}, enabled: true },
   ];
 
   // Close FAB when navigating
@@ -136,7 +134,7 @@ export function Layout() {
               className="absolute bottom-28 left-6 right-6 bg-surface border border-white/10 rounded-3xl p-6 z-50 shadow-2xl glass-card"
             >
               <h3 className="title-bold text-xl mb-4">Quick Add</h3>
-              <div className="grid grid-cols-4 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 {fabOptions.filter(o => o.enabled).map((opt, i) => (
                   <motion.div 
                     key={i}
@@ -214,7 +212,6 @@ export function Layout() {
       {isReceiptScannerOpen && (
         <ReceiptScannerScreen onClose={() => setIsReceiptScannerOpen(false)} />
       )}
-      <AiAssistant />
       <PwaInstallPrompt />
 
       {/* Balance Setup Modal */}
