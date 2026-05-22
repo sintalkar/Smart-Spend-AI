@@ -313,12 +313,17 @@ async function startServer() {
       const response = await callGeminiWithRetry(() => ai.models.generateContent({
         model: "gemini-1.5-flash",
         contents: [
-          prompt,
           {
-            inlineData: {
-              data: image.split(',')[1] || image,
-              mimeType: mimeType
-            }
+            role: "user",
+            parts: [
+              { text: prompt },
+              {
+                inlineData: {
+                  data: image.split(',')[1] || image,
+                  mimeType: mimeType
+                }
+              }
+            ]
           }
         ],
         config: {
