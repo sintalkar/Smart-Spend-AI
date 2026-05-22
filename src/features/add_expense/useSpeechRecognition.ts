@@ -76,6 +76,10 @@ export function useSpeechRecognition(onFinalResult: (text: string) => void): Use
 
     recognition.onerror = (event: any) => {
       console.error('Speech recognition error', event.error);
+      if (event.error === 'aborted') {
+        // Ignored because it happens naturally when recognition.stop() is called
+        return;
+      }
       setErrorMessage(`Error: ${event.error}`);
       setState('Error');
       if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
