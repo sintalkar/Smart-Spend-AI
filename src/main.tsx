@@ -31,6 +31,15 @@ window.addEventListener('beforeinstallprompt', (e) => {
   window.dispatchEvent(new CustomEvent('pwa-install-prompt-available'));
 });
 
+// Explicit Service Worker Registration
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js', { scope: '/' })
+      .then((reg) => console.log('[PWA] Service Worker registered successfully scope:', reg.scope))
+      .catch((err) => console.error('[PWA] Service Worker registration failed:', err));
+  });
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />
