@@ -128,7 +128,7 @@ export default function MoneyScoreScreen() {
 
     if (allTxs.length === 0) {
       return { 
-        scoreResult: scoreCalculator.calculateScoreFromFirebase(credited, debited, exp, []),
+        scoreResult: scoreCalculator.calculateScoreFromFirebase(0, 0, 0, []),
         historyData: [],
         badges: []
       };
@@ -146,7 +146,7 @@ export default function MoneyScoreScreen() {
       txsByMonth[mKey].push(t);
     });
 
-    let currentScore = scoreCalculator.calculateScoreFromFirebase(credited, debited, exp, []);
+    let currentScore = scoreCalculator.calculateScoreFromFirebase(0, 0, 0, []);
 
     for (const m of months) {
       const mKey = format(m, 'yyyy-MM');
@@ -168,11 +168,7 @@ export default function MoneyScoreScreen() {
       hData.push({ month: format(m, 'MMM'), score: res.total });
       
       if (isSameMonth(m, currentDate)) {
-        if (firebaseTotals) {
-          currentScore = scoreCalculator.calculateScoreFromFirebase(credited, debited, exp, scores.slice(0, -1));
-        } else {
-          currentScore = res;
-        }
+        currentScore = res;
       }
     }
 
