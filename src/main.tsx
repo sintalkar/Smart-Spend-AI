@@ -24,6 +24,13 @@ window.addEventListener('unhandledrejection', (event) => {
   }
 });
 
+// Capture browser's default install prompt and prevent it
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  (window as any).deferredInstallPrompt = e;
+  window.dispatchEvent(new CustomEvent('pwa-install-prompt-available'));
+});
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />

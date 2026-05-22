@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { motion } from 'motion/react';
-import { Mail, Lock, UserPlus, LogIn as LogInIcon } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { Mail, Lock, UserPlus, LogIn as LogInIcon, Smartphone, Download, X } from 'lucide-react';
 import { auth } from '../../firebase';
 import { 
   signInWithPopup, 
@@ -15,6 +15,37 @@ export default function AuthScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
+
+  const [installPromptEvent, setInstallPromptEvent] = useState<any>(() => {
+    return (window as any).deferredInstallPrompt || null;
+  });
+  const [showInstallPrompt, setShowInstallPrompt] = useState(false);
+
+  useEffect(() => {
+    if (installPromptEvent) {
+      // Small timeout to let the page settle before displaying the gorgeous promo
+      const timer = setTimeout(() => setShowInstallPrompt(true), 1500);
+      return () => clearTimeout(timer);
+    }
+
+    const handlePromptAvailable = () => {
+      setInstallPromptEvent((window as any).deferredInstallPrompt);
+      setShowInstallPrompt(true);
+    };
+
+    window.addEventListener('pwa-install-prompt-available', handlePromptAvailable);
+    return () => window.removeEventListener('pwa-install-prompt-available', handlePromptAvailable);
+  }, [installPromptEvent]);
+
+  const handleInstallClick = async () => {
+    if (!installPromptEvent) return;
+    installPromptEvent.prompt();
+    const { outcome } = await installPromptEvent.userChoice;
+    console.log(`PWA install prompt outcome: ${outcome}`);
+    (window as any).deferredInstallPrompt = null;
+    setInstallPromptEvent(null);
+    setShowInstallPrompt(false);
+  };
 
   const handleGoogleLogin = async () => {
     try {
@@ -166,6 +197,54 @@ export default function AuthScreen() {
           </div>
         </motion.div>
       </div>
+
+      {/* PWA Install Promo Modal specifically on Login Page */}
+      <AnimatePresence>
+        {showInstallPrompt && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowInstallPrompt(false)}
+              className="absolute inset-0 bg-black/85 backdrop-blur-md"
+            />
+            <motion.div 
+              initial={{ scale: 0.9, y: 50, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              exit={{ scale: 0.9, y: 50, opacity: 0 }}
+              className="relative w-full max-w-md bg-surface border border-white/10 rounded-[32px] p-8 shadow-2xl overflow-hidden glass-card text-center"
+            >
+              <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 blur-[80px] rounded-full -z-10" />
+              
+              <div className="w-16 h-16 bg-primary/10 border border-primary/20 rounded-2xl flex items-center justify-center text-primary mx-auto mb-6 shadow-lg shadow-primary/20">
+                <Smartphone size={32} className="animate-pulse" />
+              </div>
+              
+              <h3 className="text-2xl font-black text-white mb-2 tracking-tight">SmartSpend AI App</h3>
+              <p className="text-gray-400 text-sm mb-6 leading-relaxed">
+                Install our official app on your homescreen for quick offline access, real-time AI tips, and a premium standalone experience.
+              </p>
+
+              <div className="flex gap-4">
+                <button 
+                  onClick={() => setShowInstallPrompt(false)}
+                  className="flex-1 h-14 rounded-2xl bg-white/5 text-gray-300 font-semibold hover:bg-white/10 active:scale-95 transition-all cursor-pointer border border-white/5"
+                >
+                  Later
+                </button>
+                <button 
+                  onClick={handleInstallClick}
+                  className="flex-1 h-14 rounded-2xl bg-primary text-white font-semibold hover:bg-primary/95 shadow-lg shadow-primary/20 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-2 border border-white/10"
+                >
+                  <Download size={18} />
+                  Install App
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

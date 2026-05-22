@@ -10,10 +10,10 @@ export default defineConfig(({mode}) => {
     plugins: [react(), tailwindcss(), VitePWA({ 
       registerType: 'autoUpdate',
       manifest: {
-        name: 'Smart Spend',
-        short_name: 'SmartSpend',
-        description: 'Manage your daily expenses',
-        theme_color: '#ffffff',
+        name: 'Smart Spend AI',
+        short_name: 'SmartSpendAI',
+        description: 'Manage your daily expenses with AI companion',
+        theme_color: '#0a0a0c',
         icons: [
           {
             src: 'pwa-192x192.png',
