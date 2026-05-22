@@ -198,51 +198,45 @@ export default function AuthScreen() {
         </motion.div>
       </div>
 
-      {/* PWA Install Promo Modal specifically on Login Page */}
+      {/* NutriGaze-style PWA Install Popup Bar at Bottom */}
       <AnimatePresence>
         {showInstallPrompt && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowInstallPrompt(false)}
-              className="absolute inset-0 bg-black/85 backdrop-blur-md"
-            />
-            <motion.div 
-              initial={{ scale: 0.9, y: 50, opacity: 0 }}
-              animate={{ scale: 1, y: 0, opacity: 1 }}
-              exit={{ scale: 0.9, y: 50, opacity: 0 }}
-              className="relative w-full max-w-md bg-surface border border-white/10 rounded-[32px] p-8 shadow-2xl overflow-hidden glass-card text-center"
-            >
-              <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 blur-[80px] rounded-full -z-10" />
-              
-              <div className="w-16 h-16 bg-primary/10 border border-primary/20 rounded-2xl flex items-center justify-center text-primary mx-auto mb-6 shadow-lg shadow-primary/20">
-                <Smartphone size={32} className="animate-pulse" />
+          <motion.div
+            initial={{ opacity: 0, y: 100 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 100 }}
+            transition={{ type: "spring", stiffness: 200, damping: 25 }}
+            className="fixed bottom-6 left-4 right-4 bg-black/90 backdrop-blur-xl border border-white/10 rounded-[24px] p-4 shadow-2xl flex items-center justify-between z-[100] gap-4"
+          >
+            <div className="flex items-center gap-3">
+              {/* Stacked Intelligent Diamond App Icon representing Smart Spend AI */}
+              <div className="w-12 h-12 bg-primary/20 border border-primary/30 rounded-2xl flex items-center justify-center text-primary shadow-lg shadow-primary/20 shrink-0">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M12 2L2 7L12 12L22 7L12 2Z" fill="currentColor"/>
+                  <path d="M2 17L12 22L22 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M2 12L12 17L22 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
               </div>
-              
-              <h3 className="text-2xl font-black text-white mb-2 tracking-tight">SmartSpend AI App</h3>
-              <p className="text-gray-400 text-sm mb-6 leading-relaxed">
-                Install our official app on your homescreen for quick offline access, real-time AI tips, and a premium standalone experience.
-              </p>
-
-              <div className="flex gap-4">
-                <button 
-                  onClick={() => setShowInstallPrompt(false)}
-                  className="flex-1 h-14 rounded-2xl bg-white/5 text-gray-300 font-semibold hover:bg-white/10 active:scale-95 transition-all cursor-pointer border border-white/5"
-                >
-                  Later
-                </button>
-                <button 
-                  onClick={handleInstallClick}
-                  className="flex-1 h-14 rounded-2xl bg-primary text-white font-semibold hover:bg-primary/95 shadow-lg shadow-primary/20 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-2 border border-white/10"
-                >
-                  <Download size={18} />
-                  Install App
-                </button>
+              <div className="flex flex-col text-left">
+                <span className="font-bold text-white text-sm">Install Smart Spend AI</span>
+                <span className="text-[10px] text-white/50">Add to home screen for quick access</span>
               </div>
-            </motion.div>
-          </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button 
+                onClick={handleInstallClick}
+                className="bg-primary hover:bg-primary/90 text-white px-5 py-2.5 rounded-xl text-xs font-bold transition-all active:scale-95 shadow-md shadow-primary/20 cursor-pointer border border-white/10"
+              >
+                Install
+              </button>
+              <button 
+                onClick={() => setShowInstallPrompt(false)}
+                className="w-9 h-9 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/40 hover:text-white transition-colors cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>
