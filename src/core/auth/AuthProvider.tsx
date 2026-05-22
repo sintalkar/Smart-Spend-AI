@@ -34,33 +34,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
-      if (u) {
-        console.log(`[AuthProvider] User logged in: ${u.uid} (${u.email})`);
-        const userDocPath = `users/${u.uid}`;
-        
-        const syncUser = async () => {
-          try {
-            const userDocRef = doc(firestoreDb, userDocPath);
-            await setDoc(userDocRef, {
-              uid: u.uid,
-              email: u.email,
-              displayName: u.displayName,
-              photoURL: u.photoURL,
-              emailVerified: u.emailVerified,
-              lastLogin: serverTimestamp()
-            }, { merge: true });
-          } catch (error: any) {
-            console.error(`[AuthProvider] Failed to write to ${userDocPath}`, error);
-            // Don't throw here to avoid Uncaught Rejection
-            try { handleFirestoreError(error, OperationType.WRITE, userDocPath); } catch (e) {}
+      const handleAuthState = async () => {
+        try {
+          if (u) {
+            console.log(`[AuthProvider] User logged in: ${u.uid} (${u.email})`);
+            const userDocPath = `users/${u.uid}`;
+            
+            try {
+              const userDocRef = doc(firestoreDb, userDocPath);
+              await setDoc(userDocRef, {
+                uid: u.uid,
+                email: u.email,
+                displayName: u.displayName,
+                photoURL: u.photoURL,
+                emailVerified: u.emailVerified,
+                lastLogin: serverTimestamp()
+              }, { merge: true });
+            } catch (error: any) {
+              console.error(`[AuthProvider] Failed to write to ${userDocPath}`, error);
+              try { handleFirestoreError(error, OperationType.WRITE, userDocPath); } catch (e) {}
+            }
           }
-        };
-        syncUser().catch(err => console.error("[AuthProvider] syncUser caught unhandled error:", err));
-      }
-      setUser(u);
-      setLoading(false);
+          setUser(u);
+          setLoading(false);
+        } catch (err) {
+          console.error("[AuthProvider] Unhandled error in auth state change:", err);
+          setLoading(false);
+        }
+      };
+
+      handleAuthState().catch(err => {
+        console.error("[AuthProvider] Critical unhandled promise rejection:", err);
+        setLoading(false);
+      });
     });
-    return unsubscribe;
+    
+    return () => unsubscribe();
   }, []);
 
   if (loading) {
