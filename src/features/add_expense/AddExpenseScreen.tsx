@@ -12,6 +12,7 @@ import { adminService } from '../admin/AdminService';
 import { useLiveQuery } from 'dexie-react-hooks';
 import clsx from 'clsx';
 import ReceiptScanner from './ReceiptScanner';
+import { checkAndNotifyHighSpending } from '../../core/utils/notifications';
 
 export default function AddExpenseScreen() {
   const navigate = useNavigate();
@@ -205,6 +206,12 @@ export default function AddExpenseScreen() {
       return;
     }
 
+    if (!localStorage.getItem('initial_balance')) {
+      setError("Please set your starting available balance first!");
+      hapticFeedback.error();
+      return;
+    }
+
     try {
       await db.transactions.add({
         id: uuidv4(),
@@ -224,6 +231,7 @@ export default function AddExpenseScreen() {
         updatedAt: new Date().getTime(),
       });
       hapticFeedback.success();
+      checkAndNotifyHighSpending(categoryId);
       navigate(-1);
     } catch (error) {
       console.error(error);

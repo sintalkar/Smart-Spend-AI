@@ -3,6 +3,9 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db';
 import { TransactionType } from '../../db/models';
+import { db as firestoreDb } from '../../firebase';
+import { doc, onSnapshot, setDoc } from 'firebase/firestore';
+import { useAuth } from '../../core/auth/AuthProvider';
 import { scoreCalculator } from './MoneyScoreCalculator';
 import { scoreService, ScoreImprovementTip } from './GeminiScoreService';
 import { 
@@ -69,10 +72,62 @@ export default function MoneyScoreScreen() {
     []
   ) || [];
   
+  const { user } = useAuth();
+  const [firebaseTotals, setFirebaseTotals] = useState<{ creditedMoney: number; debitedMoney: number; expenses: number } | null>(null);
+
+  // Sync IndexedDB transaction totals to Firebase
+  useEffect(() => {
+    if (!user || allTxs.length === 0) return;
+    
+    let totalCredited = 0;
+    let totalDebited = 0;
+    
+    allTxs.forEach(t => {
+      if (t.type === TransactionType.CREDIT) {
+        totalCredited += t.amount;
+      } else if (t.type === TransactionType.DEBIT) {
+        totalDebited += t.amount;
+      }
+    });
+    
+    const userDocRef = doc(firestoreDb, 'users', user.uid);
+    setDoc(userDocRef, {
+      creditedMoney: totalCredited,
+      debitedMoney: totalDebited,
+      expenses: totalDebited,
+      updatedAt: Date.now()
+    }, { merge: merge => true }).catch(err => {
+      console.warn("Failed to sync totals to Firestore:", err);
+    });
+  }, [user, allTxs]);
+
+  // Subscribe to Firebase totals
+  useEffect(() => {
+    if (!user) return;
+    const userDocRef = doc(firestoreDb, 'users', user.uid);
+    const unsubscribe = onSnapshot(userDocRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setFirebaseTotals({
+          creditedMoney: Number(data.creditedMoney || 0),
+          debitedMoney: Number(data.debitedMoney || 0),
+          expenses: Number(data.expenses || 0)
+        });
+      }
+    }, (err) => {
+      console.warn("Failed to listen to Firebase user totals:", err);
+    });
+    return unsubscribe;
+  }, [user]);
+
   const { scoreResult, historyData, badges } = useMemo(() => {
+    const credited = firebaseTotals ? firebaseTotals.creditedMoney : 0;
+    const debited = firebaseTotals ? firebaseTotals.debitedMoney : 0;
+    const exp = firebaseTotals ? firebaseTotals.expenses : 0;
+
     if (allTxs.length === 0) {
       return { 
-        scoreResult: scoreCalculator.calculateScore(0, 0, {}, [], 0, 0, []),
+        scoreResult: scoreCalculator.calculateScoreFromFirebase(credited, debited, exp, []),
         historyData: [],
         badges: []
       };
@@ -90,7 +145,7 @@ export default function MoneyScoreScreen() {
       txsByMonth[mKey].push(t);
     });
 
-    let currentScore = scoreCalculator.calculateScore(0, 0, {}, [], 0, 0, []);
+    let currentScore = scoreCalculator.calculateScoreFromFirebase(credited, debited, exp, []);
 
     for (const m of months) {
       const mKey = format(m, 'yyyy-MM');
@@ -98,26 +153,25 @@ export default function MoneyScoreScreen() {
       
       let tSpent = 0;
       let inc = 0;
-      const catTotals: Record<string, number> = {};
-      const dailyMap: Record<string, number> = {};
 
       monthTx.forEach(t => {
         if (t.type === TransactionType.DEBIT) {
           tSpent += t.amount;
-          catTotals[t.categoryId] = (catTotals[t.categoryId] || 0) + t.amount;
-          const dk = format(new Date(t.dateTime), 'dd');
-          dailyMap[dk] = (dailyMap[dk] || 0) + t.amount;
         } else {
           inc += t.amount;
         }
       });
       
-      const res = scoreCalculator.calculateScore(tSpent, inc, catTotals, Object.values(dailyMap), 0, 0, scores);
+      const res = scoreCalculator.calculateScoreFromFirebase(inc, tSpent, tSpent, scores);
       scores.push(res.total);
       hData.push({ month: format(m, 'MMM'), score: res.total });
       
       if (isSameMonth(m, currentDate)) {
-        currentScore = res;
+        if (firebaseTotals) {
+          currentScore = scoreCalculator.calculateScoreFromFirebase(credited, debited, exp, scores.slice(0, -1));
+        } else {
+          currentScore = res;
+        }
       }
     }
 
@@ -131,7 +185,7 @@ export default function MoneyScoreScreen() {
     ];
 
     return { scoreResult: currentScore, historyData: hData, badges: bgs };
-  }, [allTxs, currentDate]);
+  }, [allTxs, currentDate, firebaseTotals]);
 
   // Initial scanning delay for "premium factor"
   useEffect(() => {

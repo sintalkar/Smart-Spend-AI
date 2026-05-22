@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { Home, ListOrdered, Plus, PieChart, Shield, Mic, Camera, ArrowRightLeft, Edit3, X } from 'lucide-react';
+import { Home, ListOrdered, Plus, PieChart, Shield, Mic, Camera, ArrowRightLeft, Edit3, X, Coins, Sparkles, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import clsx from 'clsx';
 import { VoiceEntryBottomSheet } from '../../features/add_expense/VoiceEntryBottomSheet';
@@ -8,6 +8,9 @@ import ReceiptScannerScreen from '../../features/receipt_scanner/ReceiptScannerS
 import { adminService, AdminFeatureToggles } from '../../features/admin/AdminService';
 import { AiAssistant } from '../../features/ai_assistant/AiAssistant';
 import { PwaInstallPrompt } from '../../features/pwa/PwaInstallPrompt';
+import { db as firestoreDb } from '../../firebase';
+import { doc, setDoc } from 'firebase/firestore';
+import { useAuth } from '../auth/AuthProvider';
 
 export function Layout() {
   const location = useLocation();
@@ -16,6 +19,64 @@ export function Layout() {
   const [isReceiptScannerOpen, setIsReceiptScannerOpen] = useState(false);
   const [toggles, setToggles] = useState<AdminFeatureToggles>(adminService.getToggles());
   const openedOnce = useRef(false);
+
+  const { user } = useAuth();
+  const [isBalanceModalOpen, setIsBalanceModalOpen] = useState(false);
+  const [balanceInput, setBalanceInput] = useState('');
+  const [balanceError, setBalanceError] = useState<string | null>(null);
+  const [initialBalance, setInitialBalance] = useState<number | null>(() => {
+    const stored = localStorage.getItem('initial_balance');
+    return stored ? Number(stored) : null;
+  });
+
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const stored = localStorage.getItem('initial_balance');
+      setInitialBalance(stored ? Number(stored) : null);
+    };
+    window.addEventListener('storage', handleStorageChange);
+    const interval = setInterval(handleStorageChange, 1000);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      clearInterval(interval);
+    };
+  }, []);
+
+  const handleFabClick = (onClickAction: () => void) => {
+    if (initialBalance === null) {
+      setIsBalanceModalOpen(true);
+    } else {
+      onClickAction();
+    }
+  };
+
+  const handleSetBalance = async () => {
+    const val = Number(balanceInput);
+    if (!balanceInput || isNaN(val) || val <= 0) {
+      setBalanceError("Please enter a valid positive balance");
+      return;
+    }
+    
+    try {
+      localStorage.setItem('initial_balance', val.toString());
+      setInitialBalance(val);
+      setIsBalanceModalOpen(false);
+      setBalanceInput('');
+      setBalanceError(null);
+      
+      // Also sync it to Firestore if logged in
+      if (user) {
+        const userDocRef = doc(firestoreDb, `users/${user.uid}`);
+        await setDoc(userDocRef, {
+          initialBalance: val,
+          updatedAt: Date.now()
+        }, { merge: true });
+      }
+    } catch (e) {
+      console.error(e);
+      setBalanceError("Failed to set starting balance. Please try again.");
+    }
+  };
 
   useEffect(() => {
     if (!openedOnce.current) {
@@ -85,7 +146,7 @@ export function Layout() {
                     className="flex flex-col items-center gap-2 cursor-pointer"
                     onClick={() => {
                       setIsFabOpen(false);
-                      opt.onClick();
+                      handleFabClick(opt.onClick);
                     }}
                   >
                     <div className={clsx("w-14 h-14 rounded-2xl flex items-center justify-center text-white shadow-lg", opt.color)}>
@@ -155,6 +216,85 @@ export function Layout() {
       )}
       <AiAssistant />
       <PwaInstallPrompt />
+
+      {/* Balance Setup Modal */}
+      <AnimatePresence>
+        {isBalanceModalOpen && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsBalanceModalOpen(false)}
+              className="absolute inset-0 bg-black/80 backdrop-blur-md"
+            />
+            <motion.div 
+              initial={{ scale: 0.9, y: 50, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              exit={{ scale: 0.9, y: 50, opacity: 0 }}
+              className="relative w-full max-w-md bg-surface border border-white/10 rounded-[32px] p-8 shadow-2xl overflow-hidden glass-card text-center"
+            >
+              <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 blur-[80px] rounded-full -z-10" />
+              
+              <div className="w-16 h-16 bg-primary/10 border border-primary/20 rounded-2xl flex items-center justify-center text-primary mx-auto mb-6">
+                <Coins size={32} className="animate-bounce" />
+              </div>
+              
+              <h3 className="text-2xl font-bold text-white mb-2">Set Available Balance</h3>
+              <p className="text-gray-400 text-sm mb-6 leading-relaxed">
+                Please enter your starting available balance to unlock manual entry, voice, receipt scanning, and transfers.
+              </p>
+
+              <div className="relative mb-6">
+                <span className="absolute left-5 top-1/2 -translate-y-1/2 text-2xl font-bold text-white/50">₹</span>
+                <input 
+                  type="number"
+                  autoFocus
+                  value={balanceInput}
+                  onChange={(e) => {
+                    setBalanceInput(e.target.value);
+                    if (balanceError) setBalanceError(null);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSetBalance();
+                  }}
+                  placeholder="0"
+                  className="w-full h-16 bg-black/40 border border-white/10 rounded-2xl pl-12 pr-6 text-2xl font-bold text-white placeholder:text-white/20 outline-none focus:border-primary/50 transition-colors"
+                />
+                
+                <AnimatePresence>
+                  {balanceError && (
+                    <motion.div 
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className="mt-3 p-3 bg-error/10 border border-error/20 rounded-xl flex items-center justify-center gap-2 text-error text-xs font-bold"
+                    >
+                      <AlertCircle size={14} />
+                      {balanceError}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              <div className="flex gap-4">
+                <button 
+                  onClick={() => setIsBalanceModalOpen(false)}
+                  className="flex-1 h-14 rounded-2xl bg-white/5 text-gray-300 font-semibold hover:bg-white/10 active:scale-95 transition-all"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={handleSetBalance}
+                  className="flex-1 h-14 rounded-2xl bg-primary text-white font-semibold hover:bg-primary/95 shadow-lg shadow-primary/20 active:scale-95 transition-all"
+                >
+                  Set Balance
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

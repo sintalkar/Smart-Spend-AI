@@ -6,6 +6,7 @@ import { ReceiptData, ReceiptItem } from './GeminiReceiptScanner';
 import { transactionRepo } from '../../db/repositories/TransactionRepository';
 import { v4 as uuidv4 } from 'uuid';
 import { TransactionType } from '../../db/models';
+import { checkAndNotifyHighSpending } from '../../core/utils/notifications';
 
 interface ReceiptResultsProps {
   receipt: ReceiptData;
@@ -60,17 +61,25 @@ export function ReceiptResultsScreen({ receipt: initialReceipt, onClose, onRetak
           isDeleted: 0,
         }));
         await db.transactions.bulkAdd(newTxs);
+        
+        // Trigger high spending check on categories
+        const uniqueCategories = Array.from(new Set(selectedItems.map(i => i.category || 'other')));
+        for (const cat of uniqueCategories) {
+          checkAndNotifyHighSpending(cat);
+        }
       } else {
         // Save as one bulk transaction
         const total = selectedItems.length === receipt.items.length && receipt.total 
           ? receipt.total 
           : getSelectedTotal();
+        
+        const mainCategory = selectedItems.length > 0 ? (selectedItems[0].category || 'other') : 'other';
           
         await db.transactions.add({
           id: uuidv4(),
           amount: total,
           type: TransactionType.DEBIT,
-          categoryId: selectedItems.length > 0 ? (selectedItems[0].category || 'other') : 'other', // Simplify category
+          categoryId: mainCategory, // Simplify category
           merchantName: receipt.merchant_name || 'Unknown',
           note: `Receipt: ${selectedItems.map(i => i.name).join(', ')}`,
           tags: ['receipt'],
@@ -83,6 +92,8 @@ export function ReceiptResultsScreen({ receipt: initialReceipt, onClose, onRetak
           updatedAt: Date.now(),
           isDeleted: 0,
         });
+
+        checkAndNotifyHighSpending(mainCategory);
       }
 
       setSaving(false);

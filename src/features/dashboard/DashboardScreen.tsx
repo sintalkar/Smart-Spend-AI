@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Bell, User as UserIcon, Sparkles, ChevronRight, ShoppingBag, Coffee, Car, Trash2, ArrowDownLeft, ArrowUpRight, Activity, LogOut, Target, AlertCircle, Mic, Shield, Zap, RefreshCw } from 'lucide-react';
+import { Bell, User as UserIcon, Sparkles, ChevronRight, ShoppingBag, Coffee, Car, Trash2, ArrowDownLeft, ArrowUpRight, Activity, LogOut, Target, AlertCircle, Mic, Shield, Zap, RefreshCw, Plus } from 'lucide-react';
 import { db } from '../../db';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../core/auth/AuthProvider';
@@ -120,7 +120,66 @@ export default function DashboardScreen() {
   const isBudgetSet = budgetLimit > 0;
 
   const recentTransactions = transactions.slice(0, 5);
-  const totalBalance = transactions.reduce((acc, t) => t.type === 'CREDIT' ? acc + t.amount : acc - t.amount, 0);
+
+  const [initialBalanceState, setInitialBalanceState] = useState<number | null>(() => {
+    const stored = localStorage.getItem('initial_balance');
+    return stored ? Number(stored) : null;
+  });
+
+  const [initBalInput, setInitBalInput] = useState('');
+  const [initBalError, setInitBalError] = useState<string | null>(null);
+
+  const [isAddBalanceOpen, setIsAddBalanceOpen] = useState(false);
+  const [addBalanceInput, setAddBalanceInput] = useState('');
+  const [addBalanceNote, setAddBalanceNote] = useState('');
+  const [addBalanceError, setAddBalanceError] = useState<string | null>(null);
+
+  const handleAddBalanceSubmit = async () => {
+    const val = Number(addBalanceInput);
+    if (!addBalanceInput || isNaN(val) || val <= 0) {
+      setAddBalanceError("Please enter a valid positive amount");
+      return;
+    }
+    
+    try {
+      const { v4: uuidv4 } = await import('uuid');
+      await db.transactions.add({
+        id: uuidv4(),
+        amount: val,
+        currency: 'INR',
+        type: TransactionType.CREDIT,
+        categoryId: 'other',
+        dateTime: Date.now(),
+        note: addBalanceNote.trim() || 'Manual Balance Top-up',
+        source: 'manual',
+        isDeleted: 0,
+        isConfirmed: 1,
+        isRecurring: 0,
+        tags: ['top-up'],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+      
+      setIsAddBalanceOpen(false);
+      setAddBalanceInput('');
+      setAddBalanceNote('');
+      setAddBalanceError(null);
+    } catch (e) {
+      console.error(e);
+      setAddBalanceError("Failed to add balance. Please try again.");
+    }
+  };
+
+  useEffect(() => {
+    const checkBalance = () => {
+      const stored = localStorage.getItem('initial_balance');
+      setInitialBalanceState(stored ? Number(stored) : null);
+    };
+    const interval = setInterval(checkBalance, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const totalBalance = (initialBalanceState || 0) + transactions.reduce((acc, t) => t.type === 'CREDIT' ? acc + t.amount : acc - t.amount, 0);
 
   // Calculate Health Score for Dashboard
   const { healthScore, healthGrade } = useMemo(() => {
@@ -326,49 +385,123 @@ export default function DashboardScreen() {
       >
         <div className="absolute top-0 right-0 w-full h-full bg-gradient-to-br from-primary/10 via-transparent to-transparent pointer-events-none"></div>
         
-        <div className="flex justify-between items-start mb-4 relative z-10">
-          <p className="text-white/60 font-bold text-[10px] uppercase tracking-[0.2em]">Available Balance</p>
-          <Sparkles size={16} className="text-primary animate-pulse" />
-        </div>
-        
-        <div className="text-[3.5rem] leading-none font-display font-bold tracking-tighter relative z-10 text-white mb-10 drop-shadow-lg">
-          {totalBalance < 0 ? "-" : ""}
-          <AnimatedCounter value={Math.abs(totalBalance)} />
-        </div>
-
-        <div className="relative z-10 bg-black/40 backdrop-blur-md rounded-2xl p-4 border border-white/5">
-          <div className="flex justify-between items-center mb-3">
-            <div className="flex items-center gap-2">
-              <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></div>
-              <span className="text-[10px] text-white/60 font-bold uppercase tracking-widest">Monthly Goal</span>
+        {initialBalanceState === null ? (
+          <div className="relative z-10">
+            <div className="flex items-center gap-2 text-primary mb-3">
+              <Sparkles size={18} className="animate-pulse" />
+              <span className="text-[10px] font-black uppercase tracking-[0.25em]">Unlock SmartSpend AI</span>
             </div>
-            <span className="text-white text-xs font-mono font-bold tracking-wider">
-              {isBudgetSet ? `₹${budgetLimit.toLocaleString()}` : "Not Set"}
-            </span>
-          </div>
-          
-          <div className="w-full bg-white/10 rounded-full h-1.5 overflow-hidden mb-3">
-            <motion.div 
-              initial={{ width: 0 }}
-              animate={{ width: `${budgetProgress}%` }}
-              transition={{ duration: 1.5, ease: "circOut", delay: 0.5 }}
-              className={`h-full rounded-full bg-gradient-to-r ${
-                budgetProgress > 90 ? 'from-error to-error/50 shadow-[0_0_10px_rgba(244,63,94,0.5)]' : 
-                budgetProgress > 70 ? 'from-warning to-warning/50' : 'from-primary to-primary/50 shadow-[0_0_10px_rgba(99,102,241,0.5)]'
-              }`}
-            />
-          </div>
-
-          <div className="flex justify-between items-center">
-            <div className="flex items-center gap-1.5">
-              <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest">Spent</p>
-              <p className="text-[11px] text-white font-mono font-bold tracking-wider">₹{monthlySpent.total.toLocaleString()}</p>
+            <h3 className="text-xl font-extrabold text-white mb-2 leading-tight">Welcome to SmartSpend!</h3>
+            <p className="text-white/60 text-xs mb-6 max-w-sm">
+              Please enter your starting available balance to unlock manual entry, voice parsing, receipt scanning, and AI analytics.
+            </p>
+            <div className="flex gap-3">
+              <div className="relative flex-1">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40 font-bold text-lg">₹</span>
+                <input 
+                  type="number"
+                  placeholder="Starting Balance"
+                  value={initBalInput}
+                  onChange={(e) => {
+                    setInitBalInput(e.target.value);
+                    setInitBalError(null);
+                  }}
+                  onKeyDown={async (e) => {
+                    if (e.key === 'Enter') {
+                      const val = Number(initBalInput);
+                      if (!initBalInput || isNaN(val) || val <= 0) {
+                        setInitBalError("Please enter a valid balance");
+                        return;
+                      }
+                      localStorage.setItem('initial_balance', val.toString());
+                      setInitialBalanceState(val);
+                      if (user) {
+                        const { doc, setDoc } = await import('firebase/firestore');
+                        const { db: fDb } = await import('../../firebase');
+                        await setDoc(doc(fDb, `users/${user.uid}`), { initialBalance: val, updatedAt: Date.now() }, { merge: true });
+                      }
+                    }
+                  }}
+                  className="w-full h-12 bg-black/40 border border-white/10 rounded-2xl pl-10 pr-4 text-white font-bold outline-none focus:border-primary/50 transition-colors"
+                />
+              </div>
+              <button 
+                onClick={async () => {
+                  const val = Number(initBalInput);
+                  if (!initBalInput || isNaN(val) || val <= 0) {
+                    setInitBalError("Please enter a valid balance");
+                    return;
+                  }
+                  localStorage.setItem('initial_balance', val.toString());
+                  setInitialBalanceState(val);
+                  if (user) {
+                    const { doc, setDoc } = await import('firebase/firestore');
+                    const { db: fDb } = await import('../../firebase');
+                    await setDoc(doc(fDb, `users/${user.uid}`), { initialBalance: val, updatedAt: Date.now() }, { merge: true });
+                  }
+                }}
+                className="h-12 px-6 bg-primary text-white font-bold rounded-2xl active:scale-95 transition-all shadow-lg shadow-primary/20 hover:opacity-90"
+              >
+                Unlock
+              </button>
             </div>
-            <span className={`text-[10px] font-black tracking-tighter ${budgetProgress > 90 ? 'text-error' : 'text-white/40'}`}>
-              {budgetProgress.toFixed(0)}%
-            </span>
+            {initBalError && (
+              <p className="text-error text-[10px] mt-2 font-bold uppercase tracking-wider">{initBalError}</p>
+            )}
           </div>
-        </div>
+        ) : (
+          <>
+            <div className="flex justify-between items-center mb-4 relative z-10">
+              <p className="text-white/60 font-bold text-[10px] uppercase tracking-[0.2em]">Available Balance</p>
+              <button 
+                onClick={() => setIsAddBalanceOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/15 active:scale-95 transition-all text-[10px] font-black uppercase tracking-wider text-white border border-white/5 shadow-md cursor-pointer"
+              >
+                <Plus size={12} className="text-primary animate-pulse" />
+                <span>Add Balance</span>
+              </button>
+            </div>
+            
+            <div className="text-[3.5rem] leading-none font-display font-bold tracking-tighter relative z-10 text-white mb-10 drop-shadow-lg">
+              {totalBalance < 0 ? "-" : ""}
+              <AnimatedCounter value={Math.abs(totalBalance)} />
+            </div>
+
+            <div className="relative z-10 bg-black/40 backdrop-blur-md rounded-2xl p-4 border border-white/5">
+              <div className="flex justify-between items-center mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></div>
+                  <span className="text-[10px] text-white/60 font-bold uppercase tracking-widest">Monthly Goal</span>
+                </div>
+                <span className="text-white text-xs font-mono font-bold tracking-wider">
+                  {isBudgetSet ? `₹${budgetLimit.toLocaleString()}` : "Not Set"}
+                </span>
+              </div>
+              
+              <div className="w-full bg-white/10 rounded-full h-1.5 overflow-hidden mb-3">
+                <motion.div 
+                  initial={{ width: 0 }}
+                  animate={{ width: `${budgetProgress}%` }}
+                  transition={{ duration: 1.5, ease: "circOut", delay: 0.5 }}
+                  className={`h-full rounded-full bg-gradient-to-r ${
+                    budgetProgress > 90 ? 'from-error to-error/50 shadow-[0_0_10px_rgba(244,63,94,0.5)]' : 
+                    budgetProgress > 70 ? 'from-warning to-warning/50' : 'from-primary to-primary/50 shadow-[0_0_10px_rgba(99,102,241,0.5)]'
+                  }`}
+                />
+              </div>
+
+              <div className="flex justify-between items-center">
+                <div className="flex items-center gap-1.5">
+                  <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest">Spent</p>
+                  <p className="text-[11px] text-white font-mono font-bold tracking-wider">₹{monthlySpent.total.toLocaleString()}</p>
+                </div>
+                <span className={`text-[10px] font-black tracking-tighter ${budgetProgress > 90 ? 'text-error' : 'text-white/40'}`}>
+                  {budgetProgress.toFixed(0)}%
+                </span>
+              </div>
+            </div>
+          </>
+        )}
       </motion.section>
 
       {/* Health Score Mini-Card */}
@@ -618,6 +751,94 @@ export default function DashboardScreen() {
                   </>
                 )}
               </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Add Balance Modal */}
+      <AnimatePresence>
+        {isAddBalanceOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsAddBalanceOpen(false)}
+              className="absolute inset-0 bg-black/80 backdrop-blur-md"
+            />
+            <motion.div 
+              initial={{ scale: 0.9, y: 50, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              exit={{ scale: 0.9, y: 50, opacity: 0 }}
+              className="relative w-full max-w-md bg-surface border border-white/10 rounded-[32px] p-8 shadow-2xl overflow-hidden glass-card text-center"
+            >
+              <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 blur-[80px] rounded-full -z-10" />
+              
+              <div className="w-16 h-16 bg-primary/10 border border-primary/20 rounded-2xl flex items-center justify-center text-primary mx-auto mb-6">
+                <Plus size={32} />
+              </div>
+              
+              <h3 className="text-2xl font-bold text-white mb-2">Add Balance</h3>
+              <p className="text-gray-400 text-sm mb-6 leading-relaxed">
+                Add money to your available balance. This will create a dynamic Credit transaction in your database history.
+              </p>
+
+              <div className="space-y-4 mb-6">
+                <div className="relative">
+                  <span className="absolute left-5 top-1/2 -translate-y-1/2 text-2xl font-bold text-white/50">₹</span>
+                  <input 
+                    type="number"
+                    autoFocus
+                    value={addBalanceInput}
+                    onChange={(e) => {
+                      setAddBalanceInput(e.target.value);
+                      if (addBalanceError) setAddBalanceError(null);
+                    }}
+                    placeholder="0"
+                    className="w-full h-16 bg-black/40 border border-white/10 rounded-2xl pl-12 pr-6 text-2xl font-bold text-white placeholder:text-white/20 outline-none focus:border-primary/50 transition-colors text-left"
+                  />
+                </div>
+
+                <div className="relative">
+                  <input 
+                    type="text"
+                    value={addBalanceNote}
+                    onChange={(e) => setAddBalanceNote(e.target.value)}
+                    placeholder="Note (e.g. Gift, Refund, Cash)"
+                    className="w-full h-12 bg-black/40 border border-white/10 rounded-2xl px-5 text-white placeholder:text-white/30 outline-none focus:border-primary/50 transition-colors text-sm"
+                  />
+                </div>
+                
+                <AnimatePresence>
+                  {addBalanceError && (
+                    <motion.div 
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className="mt-3 p-3 bg-error/10 border border-error/20 rounded-xl flex items-center justify-center gap-2 text-error text-xs font-bold"
+                    >
+                      <AlertCircle size={14} />
+                      {addBalanceError}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              <div className="flex gap-4">
+                <button 
+                  onClick={() => setIsAddBalanceOpen(false)}
+                  className="flex-1 h-14 rounded-2xl bg-white/5 text-gray-300 font-semibold hover:bg-white/10 active:scale-95 transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={handleAddBalanceSubmit}
+                  className="flex-1 h-14 rounded-2xl bg-primary text-white font-semibold hover:bg-primary/95 shadow-lg shadow-primary/20 active:scale-95 transition-all cursor-pointer"
+                >
+                  Confirm
+                </button>
+              </div>
             </motion.div>
           </div>
         )}
