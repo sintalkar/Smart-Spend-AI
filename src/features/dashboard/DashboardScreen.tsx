@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Bell, User as UserIcon, Sparkles, ChevronRight, ShoppingBag, Coffee, Car, Trash2, ArrowDownLeft, ArrowUpRight, Activity, LogOut, Target, AlertCircle, Mic, Shield, Zap, RefreshCw, Plus } from 'lucide-react';
+import { Bell, User as UserIcon, Sparkles, ChevronRight, ShoppingBag, Coffee, Car, Trash2, ArrowDownLeft, ArrowUpRight, Activity, LogOut, Target, AlertCircle, Mic, Shield, Zap, RefreshCw, Plus, Settings } from 'lucide-react';
 import { db } from '../../db';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../core/auth/AuthProvider';
@@ -129,6 +129,8 @@ export default function DashboardScreen() {
   const [addBalanceInput, setAddBalanceInput] = useState('');
   const [addBalanceNote, setAddBalanceNote] = useState('');
   const [addBalanceError, setAddBalanceError] = useState<string | null>(null);
+
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
 
   const handleAddBalanceSubmit = async () => {
     const val = Number(addBalanceInput);
@@ -301,7 +303,10 @@ export default function DashboardScreen() {
         animate={{ y: 0, opacity: 1 }}
         className="flex items-center justify-between mb-8 mt-2 sticky top-0 z-50 py-2 backdrop-blur-md -mx-6 px-6"
       >
-        <div className="flex items-center gap-3">
+        <div 
+          className="flex items-center gap-3 cursor-pointer group"
+          onClick={() => setIsProfileMenuOpen(true)}
+        >
           <div className="w-10 h-10 rounded-xl bg-surface border border-white/10 flex items-center justify-center overflow-hidden glow-primary">
             {user?.photoURL ? (
               <img src={user.photoURL} alt="User Profile" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
@@ -772,6 +777,81 @@ export default function DashboardScreen() {
           )}
         </div>
       </div>
+
+      {/* Profile Menu Overlay */}
+      <AnimatePresence>
+        {isProfileMenuOpen && (
+          <div className="fixed inset-0 z-[100] flex items-end justify-center sm:items-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsProfileMenuOpen(false)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              className="relative w-full max-w-md bg-surface border border-white/10 rounded-t-[32px] sm:rounded-[32px] p-6 shadow-2xl glass-card overflow-hidden"
+            >
+              <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 blur-[80px] rounded-full -z-10" />
+              
+              <div className="flex items-center gap-4 mb-8">
+                <div className="w-16 h-16 rounded-2xl bg-surface border border-white/10 flex items-center justify-center overflow-hidden glow-primary">
+                  {user?.photoURL ? (
+                    <img src={user.photoURL} alt="User Profile" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  ) : (
+                    <UserIcon size={32} className="text-gray-400" />
+                  )}
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-white tracking-wide">{user?.displayName || 'User'}</h3>
+                  <p className="text-sm text-gray-400">{user?.email || 'No email provided'}</p>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <button
+                  onClick={() => {
+                    setIsProfileMenuOpen(false);
+                    // Open settings or navigate
+                  }}
+                  className="w-full flex items-center gap-4 p-4 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/5 transition-colors"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-primary/20 text-primary flex items-center justify-center">
+                    <Settings size={20} />
+                  </div>
+                  <span className="font-semibold text-white">Settings</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setIsProfileMenuOpen(false);
+                    logout();
+                  }}
+                  className="w-full flex items-center gap-4 p-4 rounded-2xl bg-white/5 hover:bg-error/10 border border-white/5 hover:border-error/20 transition-colors group"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-error/20 text-error flex items-center justify-center group-hover:bg-error group-hover:text-white transition-colors">
+                    <LogOut size={20} />
+                  </div>
+                  <span className="font-semibold text-error group-hover:text-white transition-colors">Log Out</span>
+                </button>
+              </div>
+
+              <div className="mt-8 text-center">
+                <button 
+                  onClick={() => setIsProfileMenuOpen(false)}
+                  className="text-gray-500 font-bold uppercase tracking-widest text-xs hover:text-white transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
