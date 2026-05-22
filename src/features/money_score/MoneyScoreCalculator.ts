@@ -135,7 +135,7 @@ export class MoneyScoreCalculator {
     expenses: number,
     previousScores: number[] = []
   ): MoneyScoreResult {
-    // If there are no transactions at all, score is 0
+    // If there are no transactions at all, score starts at 0
     if (creditedMoney === 0 && debitedMoney === 0 && expenses === 0) {
       return {
         total: 0,
@@ -146,81 +146,45 @@ export class MoneyScoreCalculator {
       };
     }
 
-    // 1. Savings Rate Score (out of 30 pts)
-    let savingsRateScore = 0;
-    const savingsRate = creditedMoney > 0 ? ((creditedMoney - expenses) / creditedMoney) * 100 : 0;
-    if (savingsRate >= 30) savingsRateScore = 30;
-    else if (savingsRate >= 20) savingsRateScore = 20;
-    else if (savingsRate >= 10) savingsRateScore = 15;
-    else if (savingsRate >= 5) savingsRateScore = 8;
-    else if (savingsRate > 0) savingsRateScore = 5;
-
-    // 2. Budget Adherence Score (out of 25 pts)
-    let budgetScore = 0;
+    // Simple direct formula based on Firebase totals:
+    // Score = ((Credited - Expenses) / Credited) * 100
+    // Capped between 0 and 100
+    // Note: debitedMoney and expenses are the same value in Firebase,
+    // so we use only expenses to avoid double-counting.
+    let rawScore = 0;
     if (creditedMoney > 0) {
-      const debitRatio = debitedMoney / creditedMoney;
-      if (debitRatio <= 0.1) budgetScore = 25;
-      else if (debitRatio <= 0.3) budgetScore = 20;
-      else if (debitRatio <= 0.5) budgetScore = 15;
-      else if (debitRatio <= 0.8) budgetScore = 8;
-      else budgetScore = 3;
+      rawScore = ((creditedMoney - expenses) / creditedMoney) * 100;
     }
+    const total = Math.max(0, Math.min(100, Math.round(rawScore)));
 
-    // 3. Spending Consistency Score (out of 15 pts)
-    let consistencyScore = 0;
-    if (creditedMoney > 0) {
-      const expenseRatio = expenses / creditedMoney;
-      consistencyScore = Math.max(0, Math.floor((1 - expenseRatio) * 15));
-    }
-
-    // 4. Income/Expense Ratio Score (out of 15 pts)
-    let ratioScore = 0;
-    if (creditedMoney > 0) {
-      const ratio = expenses / creditedMoney;
-      if (ratio <= 0.6) ratioScore = 15;
-      else if (ratio <= 0.8) ratioScore = 10;
-      else if (ratio <= 1.0) ratioScore = 5;
-    }
-
-    // 5. Category Diversity Score (out of 10 pts)
-    let diversityScore = 0;
-    if (expenses > 0 && creditedMoney > 0) {
-      diversityScore = Math.max(2, Math.min(10, Math.floor(10 - (expenses / creditedMoney) * 3)));
-    }
-
-    // 6. Monthly Streak Score (out of 5 pts)
-    let streakScore = 0;
-    let currentStreak = 0;
-    for (let i = previousScores.length - 1; i >= 0; i--) {
-      if (previousScores[i] >= 50) currentStreak++;
-      else break;
-    }
-    if (currentStreak >= 3) streakScore = 5;
-    else if (currentStreak >= 1) streakScore = 2;
-
-    const total = savingsRateScore + budgetScore + consistencyScore + ratioScore + diversityScore + streakScore;
-
-    let grade: MoneyScoreResult['grade'] = 'Fair';
+    let grade: MoneyScoreResult['grade'] = 'Critical';
     if (total >= 85) grade = 'Excellent';
     else if (total >= 70) grade = 'Good';
     else if (total >= 50) grade = 'Fair';
     else if (total >= 30) grade = 'Needs Work';
-    else grade = 'Critical';
 
     const lastScore = previousScores.length > 0 ? previousScores[previousScores.length - 1] : total;
     const trend = previousScores.length > 0 ? total - lastScore : 0;
     const percentile = Math.min(99, Math.floor(total * 0.9 + 5));
 
+    // Breakdown mapped proportionally from the single score
+    const savingsRate = Math.round(total * 0.30);
+    const budgetAdherence = Math.round(total * 0.25);
+    const spendingConsistency = Math.round(total * 0.15);
+    const incomeExpenseRatio = Math.round(total * 0.15);
+    const categoryDiversity = Math.round(total * 0.10);
+    const monthlyStreak = Math.round(total * 0.05);
+
     return {
       total,
       breakdown: {
-        savingsRate: savingsRateScore,
-        budgetAdherence: budgetScore,
-        spendingConsistency: consistencyScore,
-        incomeExpenseRatio: ratioScore,
-        categoryDiversity: diversityScore,
-        monthlyStreak: streakScore,
-        total: total
+        savingsRate,
+        budgetAdherence,
+        spendingConsistency,
+        incomeExpenseRatio,
+        categoryDiversity,
+        monthlyStreak,
+        total
       },
       grade,
       trend,
