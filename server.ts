@@ -66,7 +66,7 @@ async function startServer() {
 
   const callGeminiWithRetry = async <T>(fn: () => Promise<T>): Promise<T> => {
     const MAX_RETRIES = 5;
-    let delay = 2000;
+    let baseDelay = 2000;
 
     let lastError: any;
     for (let i = 0; i < MAX_RETRIES; i++) {
@@ -76,12 +76,23 @@ async function startServer() {
         lastError = error;
         const isTransientError = error?.status === 503 || error?.status === 429 ||
           error?.message?.includes('503') || error?.message?.includes('429') ||
-          error?.message?.includes('high demand');
+          error?.message?.includes('high demand') || error?.message?.includes('quota') ||
+          error?.message?.includes('Quota exceeded');
 
         if (isTransientError && i < MAX_RETRIES - 1) {
-          console.warn(`[Gemini Retry] Attempt ${i + 1} failed. Retrying in ${delay}ms...`);
+          let delay = baseDelay;
+          
+          // Smart Retry parsing: look for "Please retry in [X]s"
+          const retryMatch = error?.message?.match(/retry in ([\d\.]+)s/i);
+          if (retryMatch && retryMatch[1]) {
+             delay = Math.ceil(parseFloat(retryMatch[1]) * 1000) + 1500; // Parse time + 1.5s buffer
+             console.warn(`[Gemini Retry] Quota hit. Smart waiting for ${delay}ms as requested by API...`);
+          } else {
+             console.warn(`[Gemini Retry] Attempt ${i + 1} failed. Retrying in ${delay}ms...`);
+             baseDelay *= 2; // Exponential backoff only if no explicit retry time
+          }
+
           await new Promise(resolve => setTimeout(resolve, delay));
-          delay *= 2; // Exponential backoff
           continue;
         }
         throw error;
