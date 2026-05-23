@@ -4,6 +4,8 @@ import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db as firestoreDb } from '../../firebase';
 import AuthScreen from '../../features/auth/AuthScreen';
 import { handleFirestoreError, OperationType } from '../../lib/firestoreUtils';
+import { db } from '../../db/database';
+import { syncService } from '../../services/FirebaseSyncService';
 
 interface AuthContextType {
   user: User | null;
@@ -25,8 +27,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     try {
+      syncService.stopSync();
+      await db.clearAllData();
       await auth.signOut();
-      console.log("[AuthProvider] User signed out");
+      console.log("[AuthProvider] User signed out and local data cleared");
     } catch (error) {
       console.error("[AuthProvider] Sign out error:", error);
     }
@@ -54,6 +58,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               console.error(`[AuthProvider] Failed to write to ${userDocPath}`, error);
               try { handleFirestoreError(error, OperationType.WRITE, userDocPath); } catch (e) {}
             }
+            
+            // Start cloud sync
+            syncService.startSync();
           }
           setUser(u);
           setLoading(false);
