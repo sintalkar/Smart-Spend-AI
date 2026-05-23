@@ -5,7 +5,7 @@ import { Bell, User as UserIcon, Sparkles, ChevronRight, ShoppingBag, Coffee, Ca
 import { db } from '../../db';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../core/auth/AuthProvider';
-import { TransactionType } from '../../db/models';
+import { TransactionType, BudgetPeriod } from '../../db/models';
 import { isSameMonth } from 'date-fns';
 import { insightsService } from '../insights/GeminiInsightsService';
 import { scoreCalculator } from '../money_score/MoneyScoreCalculator';
@@ -157,6 +157,53 @@ export default function DashboardScreen() {
         createdAt: Date.now(),
         updatedAt: Date.now(),
       });
+
+      // Update Global Budget Limit and History
+      const globalBudget = await db.budgets.get({ categoryId: 'global' });
+      const newReason = addBalanceNote.trim() ? `Added Available Balance: ${addBalanceNote.trim()}` : 'Added Available Balance';
+
+      if (globalBudget) {
+        const newAmount = globalBudget.amount + val;
+        await db.budgets.update(globalBudget.id, {
+          amount: newAmount
+        });
+        
+        await db.budgetHistory.add({
+          id: uuidv4(),
+          budgetId: globalBudget.id,
+          categoryId: 'global',
+          oldAmount: globalBudget.amount,
+          newAmount: newAmount,
+          reason: newReason,
+          changedAt: Date.now()
+        });
+      } else {
+        const newId = uuidv4();
+        const now = Date.now();
+        const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime();
+        const endOfMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0, 23, 59, 59, 999).getTime();
+
+        await db.budgets.add({
+          id: newId,
+          categoryId: 'global',
+          amount: val,
+          period: BudgetPeriod.MONTHLY,
+          startDate: startOfMonth,
+          endDate: endOfMonth,
+          alertThreshold: 0.8,
+          isActive: 1
+        });
+        
+        await db.budgetHistory.add({
+          id: uuidv4(),
+          budgetId: newId,
+          categoryId: 'global',
+          oldAmount: 0,
+          newAmount: val,
+          reason: newReason,
+          changedAt: Date.now()
+        });
+      }
       
       setIsAddBalanceOpen(false);
       setAddBalanceInput('');
@@ -557,7 +604,7 @@ export default function DashboardScreen() {
             <div className="w-full py-8 bg-surface/50 rounded-3xl border border-dashed border-white/10 flex flex-col items-center justify-center">
               <p className="text-gray-500 text-xs font-medium mb-3">No category budgets set</p>
               <button 
-                onClick={() => navigate('/budget')}
+                onClick={() => setIsAddBalanceOpen(true)}
                 className="text-xs text-primary font-bold uppercase tracking-widest px-4 py-2 bg-primary/10 rounded-xl"
               >
                 Set One Now

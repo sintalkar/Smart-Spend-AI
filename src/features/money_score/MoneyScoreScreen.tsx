@@ -97,7 +97,7 @@ export default function MoneyScoreScreen() {
       debitedMoney: totalDebited,
       expenses: totalDebited,
       updatedAt: Date.now()
-    }, { merge: merge => true }).catch(err => {
+    }, { merge: true }).catch(err => {
       console.warn("Failed to sync totals to Firestore:", err);
     });
   }, [user, allTxs]);

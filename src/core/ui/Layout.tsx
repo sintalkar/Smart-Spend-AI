@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { Home, ListOrdered, Plus, PieChart, Shield, Mic, Camera, Edit3, X } from 'lucide-react';
+import { Home, ListOrdered, Plus, PieChart, Shield, Mic, Camera, Edit3, X, Coins, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import clsx from 'clsx';
 import { VoiceEntryBottomSheet } from '../../features/add_expense/VoiceEntryBottomSheet';

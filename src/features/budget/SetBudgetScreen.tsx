@@ -349,7 +349,20 @@ export default function SetBudgetScreen() {
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="text-xs font-mono font-bold text-white/40">₹{history.amount.toLocaleString()}</p>
+                      {history.oldAmount !== undefined && history.newAmount !== undefined ? (
+                        <>
+                          <div className="flex items-center gap-1.5 justify-end mb-0.5">
+                            <span className="text-[10px] text-white/30 line-through">₹{history.oldAmount.toLocaleString()}</span>
+                            <span className="text-[10px] text-white/20">→</span>
+                            <span className="text-xs text-primary font-mono font-bold">₹{history.newAmount.toLocaleString()}</span>
+                          </div>
+                          {history.reason && (
+                            <p className="text-[9px] text-white/50 italic mt-1">{history.reason}</p>
+                          )}
+                        </>
+                      ) : (
+                        <p className="text-xs font-mono font-bold text-white/40">₹{history.amount.toLocaleString()}</p>
+                      )}
                     </div>
                   </div>
                 );

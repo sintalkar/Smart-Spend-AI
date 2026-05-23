@@ -14,7 +14,7 @@ export class SmartSpendDatabase extends Dexie {
   insightsCache!: EntityTable<InsightsCacheEntity, 'id'>;
   moneyScoreHistory!: EntityTable<MoneyScoreHistoryEntity, 'id'>;
   adminEvents!: EntityTable<AdminEventEntity, 'id'>;
-  budgetHistory!: EntityTable<{id: string, categoryId: string, amount: number, changedAt: number}, 'id'>;
+  budgetHistory!: EntityTable<{id: string, budgetId?: string, categoryId: string, amount?: number, oldAmount?: number, newAmount?: number, reason?: string, changedAt: number}, 'id'>;
 
   constructor() {
     super('SmartSpendDB');
