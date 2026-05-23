@@ -276,9 +276,16 @@ export default function DashboardScreen() {
     return { predictiveAlert: null, projection: projectedSpent };
   }, [monthlySpent, budgetLimit, isBudgetSet]);
 
+  const lastAlertFetchTime = useRef(0);
+
   useEffect(() => {
     const fetchAiAlert = async () => {
+      const now = Date.now();
+      // Only fetch if 60 seconds have passed since the last fetch to prevent quota exhaustion
+      if (now - lastAlertFetchTime.current < 60000) return;
+
       if (projection >= budgetLimit * 0.9 && monthlySpent.total > 0) {
+        lastAlertFetchTime.current = now;
         try {
           const dayOfMonth = new Date().getDate();
           const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
@@ -308,8 +315,11 @@ export default function DashboardScreen() {
         setAiBudgetAlert(null);
       }
     };
-    fetchAiAlert();
-  }, [projection, budgetLimit, monthlySpent, transactions]);
+    
+    // Slight debounce to let initial data settle
+    const timeout = setTimeout(fetchAiAlert, 1500);
+    return () => clearTimeout(timeout);
+  }, [projection, budgetLimit, monthlySpent.total]);
 
   useEffect(() => {
     let timeoutId: NodeJS.Timeout;
