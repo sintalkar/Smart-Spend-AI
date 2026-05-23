@@ -198,7 +198,7 @@ export default function ReceiptScannerScreen({ onClose }: { onClose?: () => void
             <div className="bg-surface h-40 pb-safe px-8 flex items-center justify-between rounded-t-3xl relative -mt-6 z-20">
                <input 
                  type="file" 
-                 accept="image/*" 
+                 accept="image/*,application/pdf" 
                  ref={fileInputRef} 
                  className="hidden" 
                  onChange={handleFileUpload}
