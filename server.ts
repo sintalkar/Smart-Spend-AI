@@ -377,7 +377,7 @@ async function startServer() {
 
       console.log("[Receipt Scan] Sending request to AI model...");
       const response = await callGeminiWithRetry(() => getAI().models.generateContent({
-        model: "gemini-flash-lite-latest",
+        model: "gemini-2.5-flash",
         contents: [
           {
             role: "user",
@@ -483,7 +483,7 @@ async function startServer() {
 
     try {
       const chat = getAI().chats.create({
-        model: "gemini-flash-lite-latest",
+        model: "gemini-2.5-flash",
         config: {
           systemInstruction: `You are "Smart Spend Personal CA", a highly-qualified, direct, firm, and caring Chartered Accountant (CA) with deep expertise in Indian personal finance and taxation.
 
