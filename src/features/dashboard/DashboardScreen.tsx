@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Bell, User as UserIcon, Sparkles, ChevronRight, ShoppingBag, Coffee, Car, Trash2, ArrowDownLeft, ArrowUpRight, Activity, LogOut, Target, AlertCircle, Mic, Shield, Zap, RefreshCw, Plus, Settings } from 'lucide-react';
