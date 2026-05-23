@@ -38,21 +38,37 @@ async function startServer() {
     next();
   });
 
-  // Gemini Setup
-  const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-
-  if (!GEMINI_API_KEY) {
-    console.warn("CRITICAL: GEMINI_API_KEY is not set in the environment variables. AI features will fail.");
+  // Gemini Load Balancer Setup
+  const allKeysRaw = [
+    process.env.GEMINI_API_KEY,
+    process.env.Smart_Spend,
+    process.env.KEY_AI,
+    process.env.ss_key
+  ];
+  
+  const uniqueKeys = Array.from(new Set(allKeysRaw.map(k => (k || '').trim()).filter(Boolean)));
+  
+  if (uniqueKeys.length === 0) {
+    console.warn("CRITICAL: No GEMINI API KEYS are set in the environment variables. AI features will fail.");
+  } else {
+    console.log(`[AI Load Balancer] Initialized with ${uniqueKeys.length} unique API keys.`);
   }
 
-  const ai = new GoogleGenAI({
-    apiKey: GEMINI_API_KEY || '',
-    httpOptions: {
-      headers: {
-        'User-Agent': 'aistudio-build',
+  let currentKeyIndex = 0;
+
+  const getAI = () => {
+    if (uniqueKeys.length === 0) return new GoogleGenAI({ apiKey: '' });
+    const key = uniqueKeys[currentKeyIndex];
+    currentKeyIndex = (currentKeyIndex + 1) % uniqueKeys.length;
+    return new GoogleGenAI({
+      apiKey: key,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        }
       }
-    }
-  });
+    });
+  };
 
   const parseAIJsonResponse = (responseText: string) => {
     let cleanText = responseText || "";
@@ -142,7 +158,7 @@ async function startServer() {
 
   // Helper to check for API key before calling Gemini
   const ensureApiKey = (res: any) => {
-    if (!GEMINI_API_KEY) {
+    if (uniqueKeys.length === 0) {
       res.status(403).json({
         error: "Gemini API key is missing. Please select an API key in the 'Settings > Secrets' panel and restart the application.",
         code: "MISSING_API_KEY"
@@ -158,7 +174,7 @@ async function startServer() {
     const { message } = req.body;
 
     try {
-      const chat = ai.chats.create({
+      const chat = getAI().chats.create({
         model: "gemini-flash-lite-latest",
         config: {
           systemInstruction: `You are "Smart Spend Admin", the powerful and secure administrative AI controller for the Smart Spend application...`,
@@ -190,7 +206,7 @@ async function startServer() {
       2. "suggestions": An array of 3-5 objects with {title, description, estimated_savings_per_month (number), difficulty (easy/medium/hard), icon_emoji}.
       Be specific to the actual spending patterns. Indian context. Make suggestions relative to the period length.`;
 
-      const response = await ai.models.generateContent({
+      const response = await getAI().models.generateContent({
         model: "gemini-flash-lite-latest",
         contents: prompt,
         config: {
@@ -247,7 +263,7 @@ async function startServer() {
       Resolve relative dates (yesterday, last Friday, 2 days ago, etc.) to actual timestamps based on Current Date.
       Default category is "other" if unsure.`;
 
-      const response = await callGeminiWithRetry(() => ai.models.generateContent({
+      const response = await callGeminiWithRetry(() => getAI().models.generateContent({
         model: "gemini-flash-lite-latest",
         contents: prompt,
         config: {
@@ -279,7 +295,7 @@ async function startServer() {
       
       Output format: JSON array of objects.`;
 
-      const response = await callGeminiWithRetry(() => ai.models.generateContent({
+      const response = await callGeminiWithRetry(() => getAI().models.generateContent({
         model: "gemini-flash-lite-latest",
         contents: prompt,
         config: {
@@ -316,7 +332,7 @@ async function startServer() {
   app.post('/api/ai/greet', async (req, res) => {
     const { userName, totalBalance, monthlySpent, budgetLimit } = req.body;
 
-    if (!GEMINI_API_KEY) {
+    if (uniqueKeys.length === 0) {
       return res.json({ greeting: `Hi ${userName}, ready to track some spends?` });
     }
 
@@ -325,7 +341,7 @@ async function startServer() {
       Status: Balance ₹${totalBalance}, Spent this month ₹${monthlySpent} out of ₹${budgetLimit} budget.
       Keep it under 15 words. Be encouraging but honest. Use Indian slang sparsely if it fits.`;
 
-      const response = await callGeminiWithRetry(() => ai.models.generateContent({
+      const response = await callGeminiWithRetry(() => getAI().models.generateContent({
         model: "gemini-flash-lite-latest",
         contents: prompt,
       }));
@@ -360,7 +376,7 @@ async function startServer() {
       Currency should be 3-letter ISO code. Check values carefully to ensure the math generally adds up. Give a confidence score (High, Medium, Low).`;
 
       console.log("[Receipt Scan] Sending request to AI model...");
-      const response = await callGeminiWithRetry(() => ai.models.generateContent({
+      const response = await callGeminiWithRetry(() => getAI().models.generateContent({
         model: "gemini-flash-lite-latest",
         contents: [
           {
@@ -404,7 +420,7 @@ async function startServer() {
       
       Return ONLY a JSON object: {"categoryId": "string", "confidence": number, "reason": "brief string"}`;
 
-      const response = await callGeminiWithRetry(() => ai.models.generateContent({
+      const response = await callGeminiWithRetry(() => getAI().models.generateContent({
         model: "gemini-flash-lite-latest",
         contents: prompt,
         config: {
@@ -421,7 +437,7 @@ async function startServer() {
   });
 
   app.post('/api/ai/budget-alert', async (req, res) => {
-    if (!GEMINI_API_KEY) {
+    if (uniqueKeys.length === 0) {
       return res.json({ alert: null });
     }
     const { monthlySpent, budgetLimit, currentPeriodTx, daysInMonth, dayOfMonth } = req.body;
@@ -446,7 +462,7 @@ async function startServer() {
       3. Give 2 actionable, non-generic pieces of advice to finish the month under budget.
       Keep it brief (max 3 sentences).`;
 
-      const response = await callGeminiWithRetry(() => ai.models.generateContent({
+      const response = await callGeminiWithRetry(() => getAI().models.generateContent({
         model: "gemini-flash-lite-latest",
         contents: prompt,
         config: {
@@ -466,7 +482,7 @@ async function startServer() {
     const { message } = req.body;
 
     try {
-      const chat = ai.chats.create({
+      const chat = getAI().chats.create({
         model: "gemini-flash-lite-latest",
         config: {
           systemInstruction: `You are "Smart Spend Assistant", a friendly, ultra-helpful, and professional financial assistant for the Smart Spend app. 
