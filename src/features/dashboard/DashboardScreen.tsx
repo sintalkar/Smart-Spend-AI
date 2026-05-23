@@ -475,7 +475,10 @@ export default function DashboardScreen() {
               </button>
             </div>
             
-            <div className="text-[3.5rem] leading-none font-display font-bold tracking-tighter relative z-10 text-white mb-10 drop-shadow-lg">
+            <div 
+              onClick={() => setIsAddBalanceOpen(true)}
+              className="text-[3.5rem] leading-none font-display font-bold tracking-tighter relative z-10 text-white mb-10 drop-shadow-lg cursor-pointer hover:scale-[1.02] active:scale-[0.98] transition-transform"
+            >
               {totalBalance < 0 ? "-" : ""}
               <AnimatedCounter value={Math.abs(totalBalance)} />
             </div>
@@ -738,6 +741,23 @@ export default function DashboardScreen() {
                     </motion.div>
                   )}
                 </AnimatePresence>
+
+                {transactions.filter(t => t.type === 'CREDIT' && (t.tags?.includes('top-up') || t.source === 'manual')).length > 0 && (
+                  <div className="mt-6 mb-2 text-left">
+                    <h4 className="text-[10px] text-white/40 font-black uppercase tracking-[0.2em] mb-3">Recent Additions</h4>
+                    <div className="space-y-2 max-h-32 overflow-y-auto no-scrollbar pr-2">
+                      {transactions.filter(t => t.type === 'CREDIT' && (t.tags?.includes('top-up') || t.source === 'manual')).slice(0, 10).map(t => (
+                        <div key={t.id} className="flex justify-between items-center bg-white/5 rounded-xl p-3 border border-white/5">
+                          <div>
+                            <p className="text-xs text-white font-medium">{t.note || 'Manual Top-up'}</p>
+                            <p className="text-[10px] text-white/40">{new Date(t.dateTime).toLocaleDateString()}</p>
+                          </div>
+                          <span className="text-primary font-mono font-bold text-sm">+₹{t.amount.toLocaleString()}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="flex gap-4">
