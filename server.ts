@@ -479,7 +479,7 @@ async function startServer() {
 
   app.post('/api/ai/assistant', async (req, res) => {
     if (!ensureApiKey(res)) return;
-    const { message, file, mimeType } = req.body;
+    const { message, files } = req.body;
 
     try {
       const chat = getAI().chats.create({
@@ -654,11 +654,15 @@ Request: [scan request]`,
       });
 
       const msgContents: any[] = [{ text: message }];
-      if (file && mimeType) {
-        msgContents.push({
-          inlineData: {
-            data: file.split(',')[1] || file,
-            mimeType: mimeType
+      if (files && Array.isArray(files)) {
+        files.forEach((f: any) => {
+          if (f.base64 && f.mimeType) {
+            msgContents.push({
+              inlineData: {
+                data: f.base64.split(',')[1] || f.base64,
+                mimeType: f.mimeType
+              }
+            });
           }
         });
       }

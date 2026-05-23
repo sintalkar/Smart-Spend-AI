@@ -13,7 +13,7 @@ export function AiAssistant() {
   ]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const [attachedFile, setAttachedFile] = useState<{ base64: string, name: string, mimeType: string } | null>(null);
+  const [attachedFiles, setAttachedFiles] = useState<{ base64: string, name: string, mimeType: string }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const transactions = useLiveQuery(() => db.transactions.where('isDeleted').equals(0).toArray()) || [];
@@ -54,38 +54,45 @@ Global Budget Limit: ₹${budgetLimit}
 ===============================`;
   }, [transactions, budgets]);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
 
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setAttachedFile({
-        base64: reader.result as string,
-        name: file.name,
-        mimeType: file.type
+    const readPromises = Array.from(files).map(file => {
+      return new Promise<{ base64: string, name: string, mimeType: string }>((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          resolve({
+            base64: reader.result as string,
+            name: file.name,
+            mimeType: file.type
+          });
+        };
+        reader.readAsDataURL(file);
       });
-    };
-    reader.readAsDataURL(file);
+    });
+
+    const newFiles = await Promise.all(readPromises);
+    setAttachedFiles(prev => [...prev, ...newFiles]);
     hapticFeedback.light();
   };
 
   const sendMessage = async () => {
-    if (!input.trim() && !attachedFile) return;
+    if (!input.trim() && attachedFiles.length === 0) return;
     
     const userMessage = input;
-    const fileToSend = attachedFile;
+    const filesToSend = attachedFiles;
     
     setInput('');
-    setAttachedFile(null);
+    setAttachedFiles([]);
     if (fileInputRef.current) fileInputRef.current.value = '';
 
-    const displayMessage = userMessage + (fileToSend ? `\n📎 [Attached Bill/Document: ${fileToSend.name}]` : '');
+    const displayMessage = userMessage + (filesToSend.length > 0 ? `\n📎 [Attached ${filesToSend.length} Bill(s): ${filesToSend.map(f => f.name).join(', ')}]` : '');
     setMessages(prev => [...prev, { role: 'user', text: displayMessage }]);
     setIsTyping(true);
     hapticFeedback.light();
 
-    const fullMessage = `${userMessage || 'Analyze this uploaded bill.'}\n\n${financialContext}`;
+    const fullMessage = `${userMessage || 'Analyze these uploaded bills.'}\n\n${financialContext}`;
 
     try {
       const response = await fetch('/api/ai/assistant', {
@@ -93,8 +100,7 @@ Global Budget Limit: ₹${budgetLimit}
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           message: fullMessage,
-          file: fileToSend?.base64,
-          mimeType: fileToSend?.mimeType
+          files: filesToSend.map(f => ({ base64: f.base64, mimeType: f.mimeType }))
         })
       });
       const data = await response.json();
@@ -134,18 +140,20 @@ Global Budget Limit: ₹${budgetLimit}
                   {m.text}
                 </div>
               ))}
-              {isTyping && <div className="p-3 bg-gray-800 text-gray-400 rounded-2xl">CA is analyzing your statement/bill...</div>}
+              {isTyping && <div className="p-3 bg-gray-800 text-gray-400 rounded-2xl">CA is analyzing your statement/bill(s)...</div>}
             </div>
 
-            {attachedFile && (
-              <div className="px-4 py-2 bg-black/40 border-t border-white/10 flex items-center justify-between text-xs text-primary">
-                <span className="truncate flex items-center gap-1.5 font-bold">
-                  <Paperclip size={12} />
-                  {attachedFile.name}
-                </span>
-                <button onClick={() => setAttachedFile(null)} className="text-gray-400 hover:text-white p-1">
-                  <X size={14} />
-                </button>
+            {attachedFiles.length > 0 && (
+              <div className="px-4 py-2 bg-black/40 border-t border-white/10 flex flex-wrap gap-2 text-xs">
+                {attachedFiles.map((file, idx) => (
+                  <span key={idx} className="bg-primary/20 text-primary border border-primary/30 px-2 py-1 rounded-lg truncate max-w-[200px] flex items-center gap-1.5 font-bold">
+                    <Paperclip size={10} />
+                    {file.name}
+                    <button onClick={() => setAttachedFiles(prev => prev.filter((_, i) => i !== idx))} className="text-gray-400 hover:text-white p-0.5 ml-1">
+                      <X size={12} />
+                    </button>
+                  </span>
+                ))}
               </div>
             )}
 
@@ -157,6 +165,7 @@ Global Budget Limit: ₹${budgetLimit}
                 accept="image/*,application/pdf"
                 className="hidden"
                 id="ca-file-input"
+                multiple
               />
               <label 
                 htmlFor="ca-file-input"
@@ -170,7 +179,7 @@ Global Budget Limit: ₹${budgetLimit}
                 onChange={e => setInput(e.target.value)}
                 onKeyPress={e => e.key === 'Enter' && sendMessage()}
                 className="flex-1 bg-background border border-white/10 rounded-xl p-3 text-white"
-                placeholder={attachedFile ? "Ask to scan, analyze or report..." : "Ask me anything..."}
+                placeholder={attachedFiles.length > 0 ? "Ask to scan, analyze or report..." : "Ask me anything..."}
               />
               <button onClick={sendMessage} className="bg-primary p-3 rounded-xl hover:scale-105 active:scale-95 transition-transform"><Send size={20} className="text-white" /></button>
             </div>
