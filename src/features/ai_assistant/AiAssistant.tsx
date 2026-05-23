@@ -1,17 +1,56 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MessageSquare, X, Send, Bot } from 'lucide-react';
 import clsx from 'clsx';
 import { hapticFeedback } from '../../core/utils/haptics';
-import { transactionRepo } from '../../db/repositories/TransactionRepository';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { db } from '../../db';
 
 export function AiAssistant() {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<{ role: 'user' | 'ai', text: string }[]>([
-    { role: 'ai', text: 'Hi! I am your Smart Spend Assistant. How can I help you today?' }
+    { role: 'ai', text: 'Namaste! I am your Smart Spend Personal CA. Let me review your books. How can I help you optimize your budget, savings, or investments today?' }
   ]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+
+  const transactions = useLiveQuery(() => db.transactions.where('isDeleted').equals(0).toArray()) || [];
+  const budgets = useLiveQuery(() => db.budgets.toArray()) || [];
+
+  const financialContext = useMemo(() => {
+    const now = new Date();
+    const currentMonthTx = transactions.filter(t => {
+      try {
+        const d = new Date(t.dateTime);
+        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+      } catch (e) {
+        return false;
+      }
+    });
+
+    const debits = currentMonthTx.filter(t => t.type === 'DEBIT');
+    const credits = currentMonthTx.filter(t => t.type === 'CREDIT');
+
+    const totalSpent = debits.reduce((acc, t) => acc + t.amount, 0);
+    const estimatedIncome = credits.reduce((acc, t) => acc + t.amount, 0) || Number(localStorage.getItem('initial_balance') || 0);
+
+    const globalBudget = budgets.find(b => b.categoryId === 'global');
+    const budgetLimit = globalBudget?.amount || 0;
+    const budgetUsed = budgetLimit > 0 ? ((totalSpent / budgetLimit) * 100).toFixed(1) : "0";
+
+    const expensesList = debits.map(t => `- ${t.note || 'Expense'}: ₹${t.amount} — ${t.categoryId}`).join('\n');
+
+    return `
+=== CURRENT LIVE CA CONTEXT ===
+Income: ₹${estimatedIncome}/month
+Risk Profile: balanced
+Budget used: ${budgetUsed}%
+Expenses this month:
+${expensesList || 'No expenses logged this month.'}
+Total spent: ₹${totalSpent}
+Global Budget Limit: ₹${budgetLimit}
+===============================`;
+  }, [transactions, budgets]);
 
   const sendMessage = async () => {
     if (!input.trim()) return;
@@ -22,19 +61,13 @@ export function AiAssistant() {
     setIsTyping(true);
     hapticFeedback.light();
 
-    let context = '';
-    if (userMessage.toLowerCase().includes('search') || userMessage.toLowerCase().includes('find') || userMessage.toLowerCase().includes('show')) {
-      const results = await transactionRepo.searchQuery(userMessage).toArray();
-      if (results.length > 0) {
-        context = `\n\nContext - Found transactions: ${JSON.stringify(results.slice(0, 5))}. Use these to answer the user query regarding transactions.`;
-      }
-    }
+    const fullMessage = `${userMessage}\n\n${financialContext}`;
 
     try {
       const response = await fetch('/api/ai/assistant', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: userMessage + context })
+        body: JSON.stringify({ message: fullMessage })
       });
       const data = await response.json();
       setMessages(prev => [...prev, { role: 'ai', text: data.text }]);
