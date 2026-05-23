@@ -64,6 +64,45 @@ async function startServer() {
     return JSON.parse(cleanText);
   };
 
+  // Global Pacer / Mutex to prevent hitting 15 RPM limits
+  class RateLimiter {
+    private queue: (() => void)[] = [];
+    private isProcessing = false;
+    private lastCallTime = 0;
+    private readonly MIN_DELAY_MS = 4100; // 4.1 seconds between requests (~14.6 requests/minute)
+
+    async enqueue<T>(task: () => Promise<T>): Promise<T> {
+      return new Promise((resolve, reject) => {
+        this.queue.push(async () => {
+          try {
+            const now = Date.now();
+            const timeSinceLastCall = now - this.lastCallTime;
+            if (timeSinceLastCall < this.MIN_DELAY_MS) {
+              await new Promise(r => setTimeout(r, this.MIN_DELAY_MS - timeSinceLastCall));
+            }
+            this.lastCallTime = Date.now();
+            resolve(await task());
+          } catch (e) {
+            reject(e);
+          }
+        });
+        this.processQueue();
+      });
+    }
+
+    private async processQueue() {
+      if (this.isProcessing || this.queue.length === 0) return;
+      this.isProcessing = true;
+      while (this.queue.length > 0) {
+        const task = this.queue.shift();
+        if (task) await task();
+      }
+      this.isProcessing = false;
+    }
+  }
+
+  const globalGeminiPacer = new RateLimiter();
+
   const callGeminiWithRetry = async <T>(fn: () => Promise<T>): Promise<T> => {
     const MAX_RETRIES = 5;
     let baseDelay = 2000;
@@ -71,7 +110,7 @@ async function startServer() {
     let lastError: any;
     for (let i = 0; i < MAX_RETRIES; i++) {
       try {
-        return await fn();
+        return await globalGeminiPacer.enqueue(fn);
       } catch (error: any) {
         lastError = error;
         const isTransientError = error?.status === 503 || error?.status === 429 ||
