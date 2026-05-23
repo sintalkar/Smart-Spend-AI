@@ -22,27 +22,32 @@ export default function AuthScreen() {
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
 
   useEffect(() => {
-    if (installPromptEvent) {
+    // Show prompt if not already running as an installed PWA
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone;
+    if (!isStandalone) {
       setShowInstallPrompt(true);
     }
 
     const handlePromptAvailable = () => {
       setInstallPromptEvent((window as any).deferredInstallPrompt);
-      setShowInstallPrompt(true);
     };
 
     window.addEventListener('pwa-install-prompt-available', handlePromptAvailable);
     return () => window.removeEventListener('pwa-install-prompt-available', handlePromptAvailable);
-  }, [installPromptEvent]);
+  }, []);
 
   const handleInstallClick = async () => {
-    if (!installPromptEvent) return;
-    installPromptEvent.prompt();
-    const { outcome } = await installPromptEvent.userChoice;
-    console.log(`PWA install prompt outcome: ${outcome}`);
-    (window as any).deferredInstallPrompt = null;
-    setInstallPromptEvent(null);
-    setShowInstallPrompt(false);
+    if (installPromptEvent) {
+      installPromptEvent.prompt();
+      const { outcome } = await installPromptEvent.userChoice;
+      console.log(`PWA install prompt outcome: ${outcome}`);
+      (window as any).deferredInstallPrompt = null;
+      setInstallPromptEvent(null);
+      setShowInstallPrompt(false);
+    } else {
+      // Fallback instructions for iOS Safari or desktop browsers where prompt isn't intercepted
+      alert("To install: \n• On Chrome/Edge: Click the install icon (monitor with arrow) in your address bar.\n• On iOS Safari: Tap the Share button at the bottom and select 'Add to Home Screen'.");
+    }
   };
 
   const handleGoogleLogin = async () => {
