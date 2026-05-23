@@ -247,14 +247,14 @@ async function startServer() {
       Resolve relative dates (yesterday, last Friday, 2 days ago, etc.) to actual timestamps based on Current Date.
       Default category is "other" if unsure.`;
 
-      const response = await ai.models.generateContent({
+      const response = await callGeminiWithRetry(() => ai.models.generateContent({
         model: "gemini-2.5-flash-lite",
         contents: prompt,
         config: {
           temperature: 0,
           responseMimeType: "application/json",
         }
-      });
+      }));
 
       res.json(parseAIJsonResponse(response.text));
     } catch (error: any) {
@@ -279,14 +279,14 @@ async function startServer() {
       
       Output format: JSON array of objects.`;
 
-      const response = await ai.models.generateContent({
+      const response = await callGeminiWithRetry(() => ai.models.generateContent({
         model: "gemini-2.5-flash-lite",
         contents: prompt,
         config: {
           temperature: 0,
           responseMimeType: "application/json",
         }
-      });
+      }));
 
       res.json(parseAIJsonResponse(response.text));
     } catch (error: any) {
@@ -325,10 +325,10 @@ async function startServer() {
       Status: Balance ₹${totalBalance}, Spent this month ₹${monthlySpent} out of ₹${budgetLimit} budget.
       Keep it under 15 words. Be encouraging but honest. Use Indian slang sparsely if it fits.`;
 
-      const response = await ai.models.generateContent({
+      const response = await callGeminiWithRetry(() => ai.models.generateContent({
         model: "gemini-2.5-flash-lite",
         contents: prompt,
-      });
+      }));
 
       res.json({ greeting: response.text });
     } catch (error: any) {
@@ -404,7 +404,7 @@ async function startServer() {
       
       Return ONLY a JSON object: {"categoryId": "string", "confidence": number, "reason": "brief string"}`;
 
-      const response = await ai.models.generateContent({
+      const response = await callGeminiWithRetry(() => ai.models.generateContent({
         model: "gemini-2.5-flash-lite",
         contents: prompt,
         config: {
@@ -412,7 +412,7 @@ async function startServer() {
           systemInstruction: "You are a specialized categorization engine. Return JSON only.",
           responseMimeType: "application/json",
         }
-      });
+      }));
 
       res.json(parseAIJsonResponse(response.text));
     } catch (error) {
@@ -446,13 +446,13 @@ async function startServer() {
       3. Give 2 actionable, non-generic pieces of advice to finish the month under budget.
       Keep it brief (max 3 sentences).`;
 
-      const response = await ai.models.generateContent({
+      const response = await callGeminiWithRetry(() => ai.models.generateContent({
         model: "gemini-2.5-flash-lite",
         contents: prompt,
         config: {
           systemInstruction: "You are a proactive financial advisor. Be direct, helpful, and culturally relevant to India.",
         }
-      });
+      }));
 
       res.json({ alert: response.text });
     } catch (error) {
@@ -477,7 +477,7 @@ async function startServer() {
         },
       });
 
-      const response = await chat.sendMessage({ message });
+      const response = await callGeminiWithRetry(() => chat.sendMessage({ message }));
       res.json({ text: response.text });
     } catch (error: any) {
       console.warn("[Assistant Error]", error?.message || "Unknown error");
