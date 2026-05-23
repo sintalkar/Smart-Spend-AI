@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Camera, Image as ImageIcon, X, Zap } from 'lucide-react';
+import { Camera, Image as ImageIcon, X, Zap, FileText } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { receiptScannerService, ReceiptData } from './GeminiReceiptScanner';
 import { ReceiptResultsScreen } from './ReceiptResultsScreen';
@@ -224,7 +224,15 @@ export default function ReceiptScannerScreen({ onClose }: { onClose?: () => void
           >
              <div className="relative w-full max-w-sm aspect-[3/4] bg-surface rounded-2xl overflow-hidden shadow-2xl border border-white/10">
                {capturedImage && (
-                 <img src={capturedImage} alt="Captured" className="w-full h-full object-cover opacity-60 grayscale" referrerPolicy="no-referrer" />
+                 capturedImage.startsWith('data:application/pdf') ? (
+                    <div className="w-full h-full flex flex-col items-center justify-center bg-gray-950 text-primary p-6">
+                      <FileText size={80} className="mb-4 animate-pulse text-primary" />
+                      <p className="text-sm font-semibold text-white">PDF Receipt Selected</p>
+                      <p className="text-xs text-gray-400 mt-1">Extracting items...</p>
+                    </div>
+                  ) : (
+                    <img src={capturedImage} alt="Captured" className="w-full h-full object-cover opacity-60 grayscale" referrerPolicy="no-referrer" />
+                  )
                )}
                
                {/* Scanning Overlay */}
