@@ -159,7 +159,7 @@ async function startServer() {
 
     try {
       const chat = ai.chats.create({
-        model: "gemini-2.5-flash",
+        model: "gemini-2.5-flash-lite",
         config: {
           systemInstruction: `You are "Smart Spend Admin", the powerful and secure administrative AI controller for the Smart Spend application...`,
         },
@@ -191,7 +191,7 @@ async function startServer() {
       Be specific to the actual spending patterns. Indian context. Make suggestions relative to the period length.`;
 
       const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: "gemini-2.5-flash-lite",
         contents: prompt,
         config: {
           temperature: 0,
@@ -248,7 +248,7 @@ async function startServer() {
       Default category is "other" if unsure.`;
 
       const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: "gemini-2.5-flash-lite",
         contents: prompt,
         config: {
           temperature: 0,
@@ -280,7 +280,7 @@ async function startServer() {
       Output format: JSON array of objects.`;
 
       const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: "gemini-2.5-flash-lite",
         contents: prompt,
         config: {
           temperature: 0,
@@ -326,7 +326,7 @@ async function startServer() {
       Keep it under 15 words. Be encouraging but honest. Use Indian slang sparsely if it fits.`;
 
       const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: "gemini-2.5-flash-lite",
         contents: prompt,
       });
 
@@ -361,7 +361,7 @@ async function startServer() {
 
       console.log("[Receipt Scan] Sending request to AI model...");
       const response = await callGeminiWithRetry(() => ai.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: "gemini-2.5-flash-lite",
         contents: [
           {
             role: "user",
@@ -405,7 +405,7 @@ async function startServer() {
       Return ONLY a JSON object: {"categoryId": "string", "confidence": number, "reason": "brief string"}`;
 
       const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: "gemini-2.5-flash-lite",
         contents: prompt,
         config: {
           temperature: 0,
@@ -447,7 +447,7 @@ async function startServer() {
       Keep it brief (max 3 sentences).`;
 
       const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: "gemini-2.5-flash-lite",
         contents: prompt,
         config: {
           systemInstruction: "You are a proactive financial advisor. Be direct, helpful, and culturally relevant to India.",
@@ -467,7 +467,7 @@ async function startServer() {
 
     try {
       const chat = ai.chats.create({
-        model: "gemini-2.5-flash",
+        model: "gemini-2.5-flash-lite",
         config: {
           systemInstruction: `You are "Smart Spend Assistant", a friendly, ultra-helpful, and professional financial assistant for the Smart Spend app. 
           Your goals are to help users understand their spending, give actionable advice based on their finance data, and guide them within the app.
