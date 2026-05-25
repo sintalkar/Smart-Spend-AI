@@ -1,76 +1,83 @@
-import express from 'express';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import { createServer as createViteServer } from 'vite';
-import { GoogleGenAI } from "@google/genai";
-import dotenv from 'dotenv';
+var __create = Object.create;
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __getProtoOf = Object.getPrototypeOf;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __copyProps = (to, from, except, desc) => {
+  if (from && typeof from === "object" || typeof from === "function") {
+    for (let key of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(to, key) && key !== except)
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+  }
+  return to;
+};
+var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
+  // If the importer is in node compatibility mode or this is not an ESM
+  // file that has been converted to a CommonJS file using a Babel-
+  // compatible transform (i.e. "__esModule" has not been set), then set
+  // "default" to the CommonJS "module.exports" for node compatibility.
+  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
+  mod
+));
 
-dotenv.config();
-
-process.on('uncaughtException', (err) => {
-  console.warn('UNCAUGHT EXCEPTION WARN:', err);
+// server.ts
+var import_express = __toESM(require("express"), 1);
+var import_path = __toESM(require("path"), 1);
+var import_url = require("url");
+var import_vite = require("vite");
+var import_genai = require("@google/genai");
+var import_dotenv = __toESM(require("dotenv"), 1);
+var import_meta = {};
+import_dotenv.default.config();
+process.on("uncaughtException", (err) => {
+  console.warn("UNCAUGHT EXCEPTION WARN:", err);
 });
-
-process.on('unhandledRejection', (reason, promise) => {
-  console.warn('UNHANDLED REJECTION WARN at:', promise, 'reason:', reason);
+process.on("unhandledRejection", (reason, promise) => {
+  console.warn("UNHANDLED REJECTION WARN at:", promise, "reason:", reason);
 });
-
-// Derive __dirname for both ESM and CJS compatibility
-let __dirname: string = '';
+var __dirname = "";
 try {
-  const __filename = fileURLToPath(import.meta.url);
-  __dirname = path.dirname(__filename);
+  const __filename = (0, import_url.fileURLToPath)(import_meta.url);
+  __dirname = import_path.default.dirname(__filename);
 } catch (e) {
-  // In bundled CJS mode, __dirname is traditionally available.
-  // If not, we fallback to process.cwd() to prevent 'undefined' issues.
-  __dirname = typeof __dirname !== 'undefined' ? (global as any).__dirname : process.cwd();
+  __dirname = typeof __dirname !== "undefined" ? global.__dirname : process.cwd();
 }
-
 async function startServer() {
-  const app = express();
-  const PORT = 3000;
-
-  app.use(express.json({ limit: '20mb' }));
-
-  // Request logging
+  const app = (0, import_express.default)();
+  const PORT = 3e3;
+  app.use(import_express.default.json({ limit: "20mb" }));
   app.use((req, res, next) => {
-    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+    console.log(`[${(/* @__PURE__ */ new Date()).toISOString()}] ${req.method} ${req.url}`);
     next();
   });
-
-  // Gemini Load Balancer Setup
   const allKeysRaw = [
     process.env.GEMINI_API_KEY,
     process.env.Smart_Spend,
     process.env.KEY_AI,
     process.env.ss_key
   ];
-  
-  const uniqueKeys = Array.from(new Set(allKeysRaw.map(k => (k || '').trim()).filter(Boolean)));
-  
+  const uniqueKeys = Array.from(new Set(allKeysRaw.map((k) => (k || "").trim()).filter(Boolean)));
   if (uniqueKeys.length === 0) {
     console.warn("CRITICAL: No GEMINI API KEYS are set in the environment variables. AI features will fail.");
   } else {
     console.log(`[AI Load Balancer] Initialized with ${uniqueKeys.length} unique API keys.`);
   }
-
   let currentKeyIndex = 0;
-
   const getAI = () => {
-    if (uniqueKeys.length === 0) return new GoogleGenAI({ apiKey: '' });
+    if (uniqueKeys.length === 0) return new import_genai.GoogleGenAI({ apiKey: "" });
     const key = uniqueKeys[currentKeyIndex];
     currentKeyIndex = (currentKeyIndex + 1) % uniqueKeys.length;
-    return new GoogleGenAI({
+    return new import_genai.GoogleGenAI({
       apiKey: key,
       httpOptions: {
         headers: {
-          'User-Agent': 'aistudio-build',
+          "User-Agent": "aistudio-build"
         }
       }
     });
   };
-
-  const parseAIJsonResponse = (responseText: string) => {
+  const parseAIJsonResponse = (responseText) => {
     let cleanText = responseText || "";
     if (cleanText.includes("```json")) {
       cleanText = cleanText.replace(/```json/g, "").replace(/```/g, "").trim();
@@ -79,22 +86,22 @@ async function startServer() {
     }
     return JSON.parse(cleanText);
   };
-
-  // Global Pacer / Mutex to prevent hitting 15 RPM limits
   class RateLimiter {
-    private queue: (() => void)[] = [];
-    private isProcessing = false;
-    private lastCallTime = 0;
-    private readonly MIN_DELAY_MS = 4100; // 4.1 seconds between requests (~14.6 requests/minute)
-
-    async enqueue<T>(task: () => Promise<T>): Promise<T> {
+    constructor() {
+      this.queue = [];
+      this.isProcessing = false;
+      this.lastCallTime = 0;
+      this.MIN_DELAY_MS = 4100;
+    }
+    // 4.1 seconds between requests (~14.6 requests/minute)
+    async enqueue(task) {
       return new Promise((resolve, reject) => {
         this.queue.push(async () => {
           try {
             const now = Date.now();
             const timeSinceLastCall = now - this.lastCallTime;
             if (timeSinceLastCall < this.MIN_DELAY_MS) {
-              await new Promise(r => setTimeout(r, this.MIN_DELAY_MS - timeSinceLastCall));
+              await new Promise((r) => setTimeout(r, this.MIN_DELAY_MS - timeSinceLastCall));
             }
             this.lastCallTime = Date.now();
             resolve(await task());
@@ -105,8 +112,7 @@ async function startServer() {
         this.processQueue();
       });
     }
-
-    private async processQueue() {
+    async processQueue() {
       if (this.isProcessing || this.queue.length === 0) return;
       this.isProcessing = true;
       while (this.queue.length > 0) {
@@ -116,38 +122,28 @@ async function startServer() {
       this.isProcessing = false;
     }
   }
-
   const globalGeminiPacer = new RateLimiter();
-
-  const callGeminiWithRetry = async <T>(fn: () => Promise<T>): Promise<T> => {
+  const callGeminiWithRetry = async (fn) => {
     const MAX_RETRIES = 5;
-    let baseDelay = 2000;
-
-    let lastError: any;
+    let baseDelay = 2e3;
+    let lastError;
     for (let i = 0; i < MAX_RETRIES; i++) {
       try {
         return await globalGeminiPacer.enqueue(fn);
-      } catch (error: any) {
+      } catch (error) {
         lastError = error;
-        const isTransientError = error?.status === 503 || error?.status === 429 ||
-          error?.message?.includes('503') || error?.message?.includes('429') ||
-          error?.message?.includes('high demand') || error?.message?.includes('quota') ||
-          error?.message?.includes('Quota exceeded');
-
+        const isTransientError = error?.status === 503 || error?.status === 429 || error?.message?.includes("503") || error?.message?.includes("429") || error?.message?.includes("high demand") || error?.message?.includes("quota") || error?.message?.includes("Quota exceeded");
         if (isTransientError && i < MAX_RETRIES - 1) {
           let delay = baseDelay;
-          
-          // Smart Retry parsing: look for "Please retry in [X]s"
           const retryMatch = error?.message?.match(/retry in ([\d\.]+)s/i);
           if (retryMatch && retryMatch[1]) {
-             delay = Math.ceil(parseFloat(retryMatch[1]) * 1000) + 1500; // Parse time + 1.5s buffer
-             console.warn(`[Gemini Retry] Quota hit. Smart waiting for ${delay}ms as requested by API...`);
+            delay = Math.ceil(parseFloat(retryMatch[1]) * 1e3) + 1500;
+            console.warn(`[Gemini Retry] Quota hit. Smart waiting for ${delay}ms as requested by API...`);
           } else {
-             console.warn(`[Gemini Retry] Attempt ${i + 1} failed. Retrying in ${delay}ms...`);
-             baseDelay *= 2; // Exponential backoff only if no explicit retry time
+            console.warn(`[Gemini Retry] Attempt ${i + 1} failed. Retrying in ${delay}ms...`);
+            baseDelay *= 2;
           }
-
-          await new Promise(resolve => setTimeout(resolve, delay));
+          await new Promise((resolve) => setTimeout(resolve, delay));
           continue;
         }
         throw error;
@@ -155,9 +151,7 @@ async function startServer() {
     }
     throw lastError;
   };
-
-  // Helper to check for API key before calling Gemini
-  const ensureApiKey = (res: any) => {
+  const ensureApiKey = (res) => {
     if (uniqueKeys.length === 0) {
       res.status(403).json({
         error: "Gemini API key is missing. Please select an API key in the 'Settings > Secrets' panel and restart the application.",
@@ -167,43 +161,36 @@ async function startServer() {
     }
     return true;
   };
-
-  // API Routes
-  app.post('/api/admin/ai-controller', async (req, res) => {
+  app.post("/api/admin/ai-controller", async (req, res) => {
     if (!ensureApiKey(res)) return;
     const { message } = req.body;
-
     try {
       const chat = getAI().chats.create({
         model: "gemini-flash-lite-latest",
         config: {
-          systemInstruction: `You are "Smart Spend Admin", the powerful and secure administrative AI controller for the Smart Spend application...`,
-        },
+          systemInstruction: `You are "Smart Spend Admin", the powerful and secure administrative AI controller for the Smart Spend application...`
+        }
       });
-
       const response = await chat.sendMessage({ message });
       res.json({ text: response.text });
-    } catch (error: any) {
+    } catch (error) {
       console.warn("[Admin AI Error]", error?.message || "Unknown error");
       res.json({ text: "I'm having trouble connecting to the administration AI right now. Please try again in a moment." });
     }
   });
-
-  app.post('/api/ai/insights', async (req, res) => {
+  app.post("/api/ai/insights", async (req, res) => {
     if (!ensureApiKey(res)) return;
     const { period, totalSpent, income, categoryBreakdown, previousPeriodBreakdown, totalBudget, categoryBudgets } = req.body;
-
     try {
-      const budget = totalBudget || 10000;
-      const spendingPercentage = budget > 0 ? Math.round((totalSpent / budget) * 100) : 0;
+      const budget = totalBudget || 1e4;
+      const spendingPercentage = budget > 0 ? Math.round(totalSpent / budget * 100) : 0;
       const alertTriggered = spendingPercentage >= 60;
-
       const prompt = `Analyze financial data for the period: ${period}
-      Total Spent: ₹${totalSpent}
-      Monthly Income: ₹${income}
-      Total Budget: ₹${budget}
+      Total Spent: \u20B9${totalSpent}
+      Monthly Income: \u20B9${income}
+      Total Budget: \u20B9${budget}
       Spending Percentage: ${spendingPercentage}%
-      Alert Status: ${alertTriggered ? 'Triggered (>=60% spent)' : 'Normal (<60% spent)'}
+      Alert Status: ${alertTriggered ? "Triggered (>=60% spent)" : "Normal (<60% spent)"}
       Category spending breakdown: ${JSON.stringify(categoryBreakdown)}
       Category-specific budget limits (if any): ${JSON.stringify(categoryBudgets || {})}
       vs Previous period category breakdown: ${JSON.stringify(previousPeriodBreakdown || {})}
@@ -212,7 +199,7 @@ async function startServer() {
 
       1. BUDGET ALERT TRIGGER:
       - Since the spending percentage is ${spendingPercentage}%, the "alert" field must be ${alertTriggered}.
-      - You MUST write an urgent, friendly, and encouraging alert message in the "alert_message" field if alert is true. Example: "⚠️ Warning! You've used ${spendingPercentage}% of your monthly budget. You're at risk of overspending!"
+      - You MUST write an urgent, friendly, and encouraging alert message in the "alert_message" field if alert is true. Example: "\u26A0\uFE0F Warning! You've used ${spendingPercentage}% of your monthly budget. You're at risk of overspending!"
 
       2. SPENDING ANALYSIS:
       - Analyze each expense category (food, transport, entertainment, shopping, bills, etc.).
@@ -229,16 +216,16 @@ async function startServer() {
       3. SAVINGS SUGGESTIONS (BE VERY SPECIFIC):
       - Give 3-5 highly actionable and specific saving tips based on the user's actual spending data.
       - Do NOT give generic advice. Reference exact categories and amounts.
-      - Example: "You spent ₹4,200 on food delivery. Cooking at home 4 days a week could save you ₹2,000/month."
+      - Example: "You spent \u20B94,200 on food delivery. Cooking at home 4 days a week could save you \u20B92,000/month."
       - Suggest specific alternatives, habits, or strategies to cut each overspent category.
 
       4. INVESTMENT SUGGESTIONS (BE VERY SPECIFIC):
       - Calculate how much the user COULD invest based on their surplus or potential savings.
       - Suggest investment options based on the savings amount:
-        * Under ₹1,000/month → Digital gold, round-up micro-investing apps (Jar, Groww)
-        * ₹1,000–₹5,000/month → SIP in index mutual funds, recurring deposits
-        * ₹5,000–₹20,000/month → SIP + PPF + ELSS for tax saving
-        * Above ₹20,000/month → Diversified portfolio: mutual funds, stocks, NPS, REITs
+        * Under \u20B91,000/month \u2192 Digital gold, round-up micro-investing apps (Jar, Groww)
+        * \u20B91,000\u2013\u20B95,000/month \u2192 SIP in index mutual funds, recurring deposits
+        * \u20B95,000\u2013\u20B920,000/month \u2192 SIP + PPF + ELSS for tax saving
+        * Above \u20B920,000/month \u2192 Diversified portfolio: mutual funds, stocks, NPS, REITs
       - Mention expected returns and time horizon.
       - Prioritize emergency fund first (3-6 months of expenses) if user has no savings buffer.
 
@@ -259,14 +246,14 @@ async function startServer() {
         "savings_suggestions": [
           {
             "title": "Cut Food Delivery",
-            "detail": "Reducing delivery orders from 18 to 6 per month saves approx ₹1,800.",
+            "detail": "Reducing delivery orders from 18 to 6 per month saves approx \u20B91,800.",
             "estimated_monthly_savings": 1800
           }
         ],
         "investment_suggestions": [
           {
             "title": "Start a SIP in Index Fund",
-            "detail": "Invest your projected savings of ₹2,500/month in a Nifty 50 Index Fund via Groww or Zerodha. Expected annual return: 12-14%.",
+            "detail": "Invest your projected savings of \u20B92,500/month in a Nifty 50 Index Fund via Groww or Zerodha. Expected annual return: 12-14%.",
             "amount": 2500,
             "platform": "Groww / Zerodha",
             "expected_return": "12-14% annually"
@@ -276,31 +263,28 @@ async function startServer() {
       }
 
       RULES:
-      - Always be specific — use the user's actual numbers, never generic percentages alone.
+      - Always be specific \u2014 use the user's actual numbers, never generic percentages alone.
       - Never suggest investments before recommending an emergency fund (3-6 months of expenses).
       - Keep alert messages urgent but encouraging, not scary.
-      - Currency should match user's locale (default ₹ INR for Indian users).
+      - Currency should match user's locale (default \u20B9 INR for Indian users).
       - All suggestions must be realistic and implementable immediately.`;
-
       const response = await getAI().models.generateContent({
         model: "gemini-flash-lite-latest",
         contents: prompt,
         config: {
           temperature: 0,
-          responseMimeType: "application/json",
+          responseMimeType: "application/json"
         }
       });
-
       res.json(parseAIJsonResponse(response.text));
-    } catch (error: any) {
+    } catch (error) {
       console.warn("[Insights Error]", error?.message || "Unknown error");
-      // Provide generic fallback if AI fails to match the new schema
-      const budget = totalBudget || 10000;
-      const spendingPercentage = budget > 0 ? Math.round((totalSpent / budget) * 100) : 0;
+      const budget = totalBudget || 1e4;
+      const spendingPercentage = budget > 0 ? Math.round(totalSpent / budget * 100) : 0;
       const alertTriggered = spendingPercentage >= 60;
       res.json({
         alert: alertTriggered,
-        alert_message: alertTriggered ? `⚠️ Warning! You've used ${spendingPercentage}% of your monthly budget. You're at risk of overspending!` : "",
+        alert_message: alertTriggered ? `\u26A0\uFE0F Warning! You've used ${spendingPercentage}% of your monthly budget. You're at risk of overspending!` : "",
         spending_percentage: spendingPercentage,
         top_overspending_categories: [],
         savings_suggestions: [
@@ -314,7 +298,7 @@ async function startServer() {
           {
             title: "Build Emergency Fund",
             detail: "We recommend keeping 3-6 months of expenses in a liquid savings account before any active mutual fund SIPs.",
-            amount: 1000,
+            amount: 1e3,
             platform: "Liquid Bank Account",
             expected_return: "3-4% annually"
           }
@@ -323,17 +307,15 @@ async function startServer() {
       });
     }
   });
-
-  app.post('/api/ai/parse-transaction', async (req, res) => {
+  app.post("/api/ai/parse-transaction", async (req, res) => {
     if (!ensureApiKey(res)) return;
     const { text, context } = req.body;
-
     try {
       const prompt = `Parse the following transaction text into a JSON object:
       "${text}"
-      ${context ? `Context: ${context}` : ''}
+      ${context ? `Context: ${context}` : ""}
       
-      Current Date: ${new Date().toISOString()}
+      Current Date: ${(/* @__PURE__ */ new Date()).toISOString()}
       
       Output format:
       {
@@ -352,27 +334,23 @@ async function startServer() {
       If the user says "spent", it's DEBIT. If "received" or "earned", it's CREDIT.
       Resolve relative dates (yesterday, last Friday, 2 days ago, etc.) to actual timestamps based on Current Date.
       Default category is "other" if unsure.`;
-
       const response = await callGeminiWithRetry(() => getAI().models.generateContent({
         model: "gemini-flash-lite-latest",
         contents: prompt,
         config: {
           temperature: 0,
-          responseMimeType: "application/json",
+          responseMimeType: "application/json"
         }
       }));
-
       res.json(parseAIJsonResponse(response.text));
-    } catch (error: any) {
+    } catch (error) {
       console.warn("[Parse Error]", error?.message || "Unknown error");
       res.json({ error: "Failed to automatically parse. Please enter these details manually." });
     }
   });
-
-  app.post('/api/ai/score-tips', async (req, res) => {
+  app.post("/api/ai/score-tips", async (req, res) => {
     if (!ensureApiKey(res)) return;
     const { score, breakdown } = req.body;
-
     try {
       const prompt = `User's Financial Money Score: ${score}/100.
       Breakdown Details: ${JSON.stringify(breakdown)}
@@ -384,20 +362,17 @@ async function startServer() {
       3. "effort": 'easy' | 'medium' | 'hard'
       
       Output format: JSON array of objects.`;
-
       const response = await callGeminiWithRetry(() => getAI().models.generateContent({
         model: "gemini-flash-lite-latest",
         contents: prompt,
         config: {
           temperature: 0,
-          responseMimeType: "application/json",
+          responseMimeType: "application/json"
         }
       }));
-
       res.json(parseAIJsonResponse(response.text));
-    } catch (error: any) {
+    } catch (error) {
       console.warn("[Score Tips Error]", error?.message || "Unknown error");
-      // Provide generic useful tips as fallback if AI fails due to high demand or other errors
       const fallbackTips = [
         {
           tip: "Review your recurring subscriptions and cancel those you haven't used in the past month.",
@@ -418,45 +393,33 @@ async function startServer() {
       res.json(fallbackTips);
     }
   });
-
-  app.post('/api/ai/greet', async (req, res) => {
+  app.post("/api/ai/greet", async (req, res) => {
     const { userName, totalBalance, monthlySpent, budgetLimit } = req.body;
-
     if (uniqueKeys.length === 0) {
       return res.json({ greeting: `Hi ${userName}, ready to track some spends?` });
     }
-
     try {
       const prompt = `Generate a very short, witty, and personalized one-line greeting for a finance app user named ${userName}.
-      Status: Balance ₹${totalBalance}, Spent this month ₹${monthlySpent} out of ₹${budgetLimit} budget.
+      Status: Balance \u20B9${totalBalance}, Spent this month \u20B9${monthlySpent} out of \u20B9${budgetLimit} budget.
       Keep it under 15 words. Be encouraging but honest. Use Indian slang sparsely if it fits.`;
-
       const response = await callGeminiWithRetry(() => getAI().models.generateContent({
         model: "gemini-flash-lite-latest",
-        contents: prompt,
+        contents: prompt
       }));
-
       res.json({ greeting: response.text });
-    } catch (error: any) {
-      // Check for 429 Quota Exceeded or 503 Unavailable
-      const isQuotaOrUnavailable =
-        error?.status === 429 || error?.message?.includes('429') || error?.message?.includes('quota') ||
-        error?.status === 503 || error?.message?.includes('503') || error?.message?.includes('UNAVAILABLE');
-
+    } catch (error) {
+      const isQuotaOrUnavailable = error?.status === 429 || error?.message?.includes("429") || error?.message?.includes("quota") || error?.status === 503 || error?.message?.includes("503") || error?.message?.includes("UNAVAILABLE");
       if (isQuotaOrUnavailable) {
         console.warn("--> Gemini Quota exceeded/Unavailable. Using fallback greeting.");
-        return res.json({ greeting: `Hi ${userName}, tracking your spends like a pro! 🚀` });
+        return res.json({ greeting: `Hi ${userName}, tracking your spends like a pro! \u{1F680}` });
       }
-
       console.warn("--> Greet route info:", error?.message || error);
       res.json({ greeting: `Hi ${userName}, let's track your spends today!` });
     }
   });
-
-  app.post('/api/ai/scan-receipt', async (req, res) => {
+  app.post("/api/ai/scan-receipt", async (req, res) => {
     if (!ensureApiKey(res)) return;
     const { image, mimeType } = req.body;
-
     try {
       const prompt = `Analyze this receipt image. Extract all data as JSON:
       {merchant_name, date, items: [{name, quantity, unit_price, total_price, category}], subtotal, tax, discount, total, payment_method, currency}
@@ -464,7 +427,6 @@ async function startServer() {
       Use null for missing fields. All prices as numbers (no currency symbols). 
       Always find and return the final balance due on the receipt, avoiding other numerical values for the total field.
       Currency should be 3-letter ISO code. Check values carefully to ensure the math generally adds up. Give a confidence score (High, Medium, Low).`;
-
       console.log("[Receipt Scan] Sending request to AI model...");
       const response = await callGeminiWithRetry(() => getAI().models.generateContent({
         model: "gemini-2.5-flash",
@@ -475,8 +437,8 @@ async function startServer() {
               { text: prompt },
               {
                 inlineData: {
-                  data: image.split(',')[1] || image,
-                  mimeType: mimeType
+                  data: image.split(",")[1] || image,
+                  mimeType
                 }
               }
             ]
@@ -485,65 +447,57 @@ async function startServer() {
         config: {
           temperature: 0,
           systemInstruction: "You are an expert receipt parser. Return ONLY valid JSON matching the requested schema.",
-          responseMimeType: "application/json",
+          responseMimeType: "application/json"
         }
       }));
-
       console.log("[Receipt Scan] Received response from AI model.");
       res.json(parseAIJsonResponse(response.text));
-    } catch (error: any) {
+    } catch (error) {
       console.error("[Receipt Scan Error] Exception caught:", error);
       res.json({ error: "Failed to scan receipt. Please enter the details manually." });
     }
   });
-
-  app.post('/api/ai/categorize', async (req, res) => {
+  app.post("/api/ai/categorize", async (req, res) => {
     if (!ensureApiKey(res)) return;
     const { merchant, note } = req.body;
-
     try {
       const prompt = `Categorize this transaction:
-      Merchant: ${merchant || 'Unknown'}
-      Note: ${note || 'None'}
+      Merchant: ${merchant || "Unknown"}
+      Note: ${note || "None"}
       
       Categories: food_dining, groceries, shopping, healthcare, entertainment, transportation, utilities, investment, other
       
       Return ONLY a JSON object: {"categoryId": "string", "confidence": number, "reason": "brief string"}`;
-
       const response = await callGeminiWithRetry(() => getAI().models.generateContent({
         model: "gemini-flash-lite-latest",
         contents: prompt,
         config: {
           temperature: 0,
           systemInstruction: "You are a specialized categorization engine. Return JSON only.",
-          responseMimeType: "application/json",
+          responseMimeType: "application/json"
         }
       }));
-
       res.json(parseAIJsonResponse(response.text));
     } catch (error) {
       res.status(500).json({ categoryId: "other", confidence: 0 });
     }
   });
-
-  app.post('/api/ai/budget-alert', async (req, res) => {
+  app.post("/api/ai/budget-alert", async (req, res) => {
     if (uniqueKeys.length === 0) {
       return res.json({ alert: null });
     }
     const { monthlySpent, budgetLimit, currentPeriodTx, daysInMonth, dayOfMonth } = req.body;
-
     try {
-      const projection = (monthlySpent / dayOfMonth) * daysInMonth;
-      const categories = currentPeriodTx.reduce((acc: any, t: any) => {
-        if (t.type === 'DEBIT') acc[t.categoryId] = (acc[t.categoryId] || 0) + t.amount;
+      const projection = monthlySpent / dayOfMonth * daysInMonth;
+      const categories = currentPeriodTx.reduce((acc, t) => {
+        if (t.type === "DEBIT") acc[t.categoryId] = (acc[t.categoryId] || 0) + t.amount;
         return acc;
       }, {});
-
       const prompt = `Analyze this budget situation for an Indian user:
-      Spent so far: ₹${monthlySpent}
-      Budget Limit: ₹${budgetLimit}
+      Spent so far: \u20B9${monthlySpent}
+      Budget Limit: \u20B9${budgetLimit}
       Day ${dayOfMonth} of ${daysInMonth}
-      Current Projection: ₹${projection.toFixed(0)}
+      Current Projection: \u20B9${projection.toFixed(0)}
       Category Breakdown: ${JSON.stringify(categories)}
       
       The user is likely to exceed their budget. 
@@ -551,26 +505,22 @@ async function startServer() {
       2. Provide a specific, friendly reason for the alert.
       3. Give 2 actionable, non-generic pieces of advice to finish the month under budget.
       Keep it brief (max 3 sentences).`;
-
       const response = await callGeminiWithRetry(() => getAI().models.generateContent({
         model: "gemini-flash-lite-latest",
         contents: prompt,
         config: {
-          systemInstruction: "You are a proactive financial advisor. Be direct, helpful, and culturally relevant to India.",
+          systemInstruction: "You are a proactive financial advisor. Be direct, helpful, and culturally relevant to India."
         }
       }));
-
       res.json({ alert: response.text });
     } catch (error) {
       console.warn("[Budget Alert Error]", error);
       res.json({ alert: "Keep an eye on your spending to stay within your budget!" });
     }
   });
-
-  app.post('/api/ai/assistant', async (req, res) => {
+  app.post("/api/ai/assistant", async (req, res) => {
     if (!ensureApiKey(res)) return;
     const { message, files } = req.body;
-
     try {
       const chat = getAI().chats.create({
         model: "gemini-2.5-flash",
@@ -581,7 +531,7 @@ IDENTITY & TONE:
 - You advise exactly like an expert Indian CA. You are firm, direct, and caring.
 - You are not a generic chatbot. Avoid corporate jargon. Be extremely precise.
 - Never say "it depends". Always give a direct, concrete recommendation.
-- Always use ₹ with exact amounts — never say "some money" or "a little".
+- Always use \u20B9 with exact amounts \u2014 never say "some money" or "a little".
 - Use bold headers and bullet points for clarity.
 - Keep responses under 250 words unless a full report is requested.
 
@@ -589,23 +539,23 @@ IDENTITY & TONE:
 
 CORE CA LOGIC:
 
-STEP 1 — BUDGET SPLIT (apply immediately when income is given):
-- For income >= ₹25,000: 50% Needs, 30% Wants, 20% Savings + Investments (non-negotiable).
-- For income < ₹25,000: 60% Needs, 20% Wants, 20% Savings + Investments.
-- Always list the exact ₹ amount for each of these three buckets.
+STEP 1 \u2014 BUDGET SPLIT (apply immediately when income is given):
+- For income >= \u20B925,000: 50% Needs, 30% Wants, 20% Savings + Investments (non-negotiable).
+- For income < \u20B925,000: 60% Needs, 20% Wants, 20% Savings + Investments.
+- Always list the exact \u20B9 amount for each of these three buckets.
 
-STEP 2 — SPENDING LIMIT:
+STEP 2 \u2014 SPENDING LIMIT:
 - Total spending limit = 80% of income.
 - Savings floor = 20% of income (treat as locked and untouchable).
 
-STEP 3 — OVERSPENDING ALERTS (trigger immediately if the user's data crosses these thresholds):
-- 75% budget used: "⚠️ WARNING: ₹[amount] remaining. Slow down on non-essentials."
-- 90% budget used: "⚠️ CRITICAL: Stop all wants spending. Only ₹[amount] left for essentials."
-- 100% crossed: "🛑 OVERSPENDING ALERT: You've exceeded budget by ₹[amount]. No more purchases this month."
-- Wants > 30% of income: "💸 Wants category crossed 30%. Move ₹[amount] to SIP immediately."
-- Savings < 10% of income: "❌ SAVINGS CRISIS: Less than 10% saved. Immediate action required."
+STEP 3 \u2014 OVERSPENDING ALERTS (trigger immediately if the user's data crosses these thresholds):
+- 75% budget used: "\u26A0\uFE0F WARNING: \u20B9[amount] remaining. Slow down on non-essentials."
+- 90% budget used: "\u26A0\uFE0F CRITICAL: Stop all wants spending. Only \u20B9[amount] left for essentials."
+- 100% crossed: "\u{1F6D1} OVERSPENDING ALERT: You've exceeded budget by \u20B9[amount]. No more purchases this month."
+- Wants > 30% of income: "\u{1F4B8} Wants category crossed 30%. Move \u20B9[amount] to SIP immediately."
+- Savings < 10% of income: "\u274C SAVINGS CRISIS: Less than 10% saved. Immediate action required."
 
-STEP 4 — WASTEFUL SPENDING DETECTION:
+STEP 4 \u2014 WASTEFUL SPENDING DETECTION:
 Flag these habits automatically:
 - Food delivery > 4 times/month
 - Stacked OTT or app subscriptions
@@ -613,28 +563,28 @@ Flag these habits automatically:
 - Entertainment > 10% of income
 - Dining out > 3 times/week
 For every flagged expense, state:
-a) Monthly waste amount (₹)
-b) What that ₹ amount becomes in 5 years if invested in a Mutual Fund SIP at 12% CAGR (Formula: M = P * [((1 + i)^n - 1) / i] * (1 + i) where i = 1% monthly and n = 60 months. Roughly multiply the monthly amount by 82.5).
+a) Monthly waste amount (\u20B9)
+b) What that \u20B9 amount becomes in 5 years if invested in a Mutual Fund SIP at 12% CAGR (Formula: M = P * [((1 + i)^n - 1) / i] * (1 + i) where i = 1% monthly and n = 60 months. Roughly multiply the monthly amount by 82.5).
 c) One specific alternative action they can take today.
 
-STEP 5 — SAVINGS GUIDANCE:
-- Remind them: "Pay yourself first — save before you spend."
-- If savings are < 20%, calculate the exact ₹ gap and list which category to cut.
+STEP 5 \u2014 SAVINGS GUIDANCE:
+- Remind them: "Pay yourself first \u2014 save before you spend."
+- If savings are < 20%, calculate the exact \u20B9 gap and list which category to cut.
 
-STEP 6 — INVESTMENT RECOMMENDATIONS (based on risk profile):
+STEP 6 \u2014 INVESTMENT RECOMMENDATIONS (based on risk profile):
 - CONSERVATIVE (age 45+, first-time, low risk): 40% FD/RD, 25% Debt/Hybrid Funds, 20% Sovereign Gold Bonds (SGB), 15% PPF/EPF.
 - BALANCED (age 30-45, moderate risk): 35% Flexi-cap/Index SIP, 25% FD/RD, 20% SGB/Digital Gold, 20% Nifty 50 ETF/Stocks.
 - AGGRESSIVE (age 20-35, high growth): 50% Small/Mid-cap/ELSS SIP, 25% Direct Equity, 15% FD/NPS, 10% SGB.
-- Provide the exact ₹ amounts for each bucket.
+- Provide the exact \u20B9 amounts for each bucket.
 
-STEP 7 — MONTHLY HEALTH REPORT (when requested):
+STEP 7 \u2014 MONTHLY HEALTH REPORT (when requested):
 Include:
 - Financial Health Score out of 100
 - Income vs spending breakdown in %
 - Top 3 wasteful expenses
 - Savings achieved vs target
 - 3 action items for next month
-- Investment plan with exact ₹ amounts
+- Investment plan with exact \u20B9 amounts
 - One motivational closing line
 
 ---
@@ -648,144 +598,139 @@ When any bill, photo of receipt, multiple bills, bank statement, or credit card 
 4. Separate GOOD spending from WASTEFUL spending.
 5. Generate a full bill analysis report instantly.
 
-STEP 1 — BILL DATA EXTRACTION:
-Extract: Merchant/Vendor, Date, Amount (₹), Description, Payment method.
+STEP 1 \u2014 BILL DATA EXTRACTION:
+Extract: Merchant/Vendor, Date, Amount (\u20B9), Description, Payment method.
 If multiple bills are uploaded for one month:
 - Merge all into one master expense list.
 - Remove duplicates if same transaction appears twice.
 - Sort by date (oldest to newest).
 - Show total count of bills scanned and total amount detected.
 
-STEP 2 — AUTO CATEGORISATION:
+STEP 2 \u2014 AUTO CATEGORISATION:
 Assign every expense to one of these categories:
 - NEEDS: Rent/EMI, Groceries, Electricity/Water/Gas, Mobile/Internet, Medicines, School Fees, Transport/Petrol, Insurance, Loan EMI.
 - WANTS: Restaurants, Food delivery (Swiggy/Zomato), Shopping (Amazon/Flipkart/Myntra), Movies/Events, Salon/Spa, Gifts, Alcohol/Tobacco.
 - SUBSCRIPTIONS: Netflix, Prime, Hotstar, Spotify, Cloud Storage, Gaming, Gym, News.
 - HEALTH & WELLNESS: Doctor, Pharmacy, Lab reports, Supplements.
 - INVESTMENTS & SAVINGS: SIP/Mutual Fund, FD/RD, PPF/NPS, Stocks, Gold.
-- INCOME: Salary credit, Freelance payment, Rental income, Investment returns, or any credit > ₹1,000.
+- INCOME: Salary credit, Freelance payment, Rental income, Investment returns, or any credit > \u20B91,000.
 - OTHERS: Unidentified transactions, ATM withdrawals, Family transfers.
 
-STEP 3 — GOOD vs WASTEFUL SPENDING DETECTION:
-- ✅ GOOD SPENDING (Necessary): All NEEDS, HEALTH & WELLNESS, INVESTMENTS & SAVINGS, Wants within 30% income limit, and Subscriptions < ₹500/month.
-- ❌ WASTEFUL SPENDING (Waste): Food delivery > 4 orders/month, Duplicate subscriptions, Dining out > 8 times/month, Impulse shopping > ₹2,000, Wants > 30% of income, > 2 active OTTs, ATM cash with no purpose, Alcohol/Tobacco, late fees/penalties, midnight impulse transactions.
+STEP 3 \u2014 GOOD vs WASTEFUL SPENDING DETECTION:
+- \u2705 GOOD SPENDING (Necessary): All NEEDS, HEALTH & WELLNESS, INVESTMENTS & SAVINGS, Wants within 30% income limit, and Subscriptions < \u20B9500/month.
+- \u274C WASTEFUL SPENDING (Waste): Food delivery > 4 orders/month, Duplicate subscriptions, Dining out > 8 times/month, Impulse shopping > \u20B92,000, Wants > 30% of income, > 2 active OTTs, ATM cash with no purpose, Alcohol/Tobacco, late fees/penalties, midnight impulse transactions.
 For every wasteful item found, auto-generate:
-- "You spent ₹X on [item] — this is wasteful because [reason]"
-- "If you had invested ₹X/month in SIP at 12% CAGR, in 5 years it becomes ₹[amount]"
+- "You spent \u20B9X on [item] \u2014 this is wasteful because [reason]"
+- "If you had invested \u20B9X/month in SIP at 12% CAGR, in 5 years it becomes \u20B9[amount]"
 - "Smart Spend AI recommends: [specific alternative action]"
 
-STEP 4 — MONTHLY BILL SUMMARY REPORT:
+STEP 4 \u2014 MONTHLY BILL SUMMARY REPORT:
 Generate this report layout automatically:
-📋 SMART SPEND AI — MONTHLY BILL SCAN REPORT
-📁 Bills Scanned: [X] files
-📅 Period Covered: [date range]
-💰 Total Amount Detected: ₹[amount]
+\u{1F4CB} SMART SPEND AI \u2014 MONTHLY BILL SCAN REPORT
+\u{1F4C1} Bills Scanned: [X] files
+\u{1F4C5} Period Covered: [date range]
+\u{1F4B0} Total Amount Detected: \u20B9[amount]
 
 CATEGORY BREAKDOWN:
--> Needs: ₹[amount] — [X]%
--> Wants: ₹[amount] — [X]%
--> Subscriptions: ₹[amount] — [X]%
--> Health: ₹[amount] — [X]%
--> Investments: ₹[amount] — [X]%
--> Others: ₹[amount] — [X]%
+-> Needs: \u20B9[amount] \u2014 [X]%
+-> Wants: \u20B9[amount] \u2014 [X]%
+-> Subscriptions: \u20B9[amount] \u2014 [X]%
+-> Health: \u20B9[amount] \u2014 [X]%
+-> Investments: \u20B9[amount] \u2014 [X]%
+-> Others: \u20B9[amount] \u2014 [X]%
 
-✅ GOOD SPENDING TOTAL: ₹[amount]
-❌ WASTEFUL SPENDING TOTAL: ₹[amount]
-💸 WASTE PERCENTAGE: [X]% of your income is going to waste
+\u2705 GOOD SPENDING TOTAL: \u20B9[amount]
+\u274C WASTEFUL SPENDING TOTAL: \u20B9[amount]
+\u{1F4B8} WASTE PERCENTAGE: [X]% of your income is going to waste
 
 TOP 3 WASTEFUL EXPENSES THIS MONTH:
-1. [merchant] — ₹[amount] — [reason]
-2. [merchant] — ₹[amount] — [reason]
-3. [merchant] — ₹[amount] — [reason]
+1. [merchant] \u2014 \u20B9[amount] \u2014 [reason]
+2. [merchant] \u2014 \u20B9[amount] \u2014 [reason]
+3. [merchant] \u2014 \u20B9[amount] \u2014 [reason]
 
 SUBSCRIPTIONS REVIEW:
--> Active subscriptions found: [list with ₹]
+-> Active subscriptions found: [list with \u20B9]
 -> Possibly unused or duplicate: [list]
--> Recommended to cancel: [list] — Monthly saving: ₹[amount]
+-> Recommended to cancel: [list] \u2014 Monthly saving: \u20B9[amount]
 
 SAVINGS OPPORTUNITY:
--> If you cut all wasteful spending: ₹[amount] freed/month
--> Invested in SIP at 12% CAGR for 5 years: ₹[calculated]
--> Invested in SIP at 12% CAGR for 10 years: ₹[calculated]
+-> If you cut all wasteful spending: \u20B9[amount] freed/month
+-> Invested in SIP at 12% CAGR for 5 years: \u20B9[calculated]
+-> Invested in SIP at 12% CAGR for 10 years: \u20B9[calculated]
 
 FINANCIAL HEALTH SCORE THIS MONTH: [X]/100
 NEXT ACTION: [one specific action today]
 
-STEP 5 — MULTI-MONTH BILL HISTORY:
+STEP 5 \u2014 MULTI-MONTH BILL HISTORY:
 - Compare month-over-month spending in each category.
-- Identify growing categories and spot recurring wasteful patterns (e.g. Swiggy > ₹3,000/mo).
+- Identify growing categories and spot recurring wasteful patterns (e.g. Swiggy > \u20B93,000/mo).
 - Trend calculation: "Your food delivery spending has increased 40% over 3 months".
 - Total waste over all months combined and total potential savings.
 
-STEP 6 — SMART ALERTS FROM BILL SCAN:
-Trigger standard alerts (🔴 Duplicate sub, 🔴 Food delivery frequency, 🔴 Midnight impulse, 🟡 Grocery MoM increase, 🟡 Subscriptions count, 🟢 Needs within 50%, 🟢 Invested Consistency) when conditions are met.
+STEP 6 \u2014 SMART ALERTS FROM BILL SCAN:
+Trigger standard alerts (\u{1F534} Duplicate sub, \u{1F534} Food delivery frequency, \u{1F534} Midnight impulse, \u{1F7E1} Grocery MoM increase, \u{1F7E1} Subscriptions count, \u{1F7E2} Needs within 50%, \u{1F7E2} Invested Consistency) when conditions are met.
 
 ---
 
 RESPONSE RULES FOR BILL SCANNING:
 - Always confirm how many bills were successfully read.
 - If a bill is unclear, say: "Bill [X] could not be fully read. Please upload a clearer image or PDF."
-- Never guess an amount — if unreadable, mark it as "amount unclear — please verify".
-- Always show ₹ amounts, never round off or approximate.
+- Never guess an amount \u2014 if unreadable, mark it as "amount unclear \u2014 please verify".
+- Always show \u20B9 amounts, never round off or approximate.
 - End every bill scan report with one NEXT ACTION.
 - If the user uploads a bank statement, treat every debit as an expense and every credit as income.
-- Flag any transaction above ₹5,000 in the wants/entertainment category as high-value wasteful spend.
+- Flag any transaction above \u20B95,000 in the wants/entertainment category as high-value wasteful spend.
 
 ---
 
 INPUT FORMAT FOR BILL SCAN:
 The app will feed data in this layout:
-Monthly Income: ₹[amount]
+Monthly Income: \u20B9[amount]
 Risk Profile: [conservative/balanced/aggressive]
 Uploaded files: [list of files]
 Extracted text from bills: [raw text/OCR]
-Request: [scan request]`,
-        },
+Request: [scan request]`
+        }
       });
-
-      const msgContents: any[] = [{ text: message }];
+      const msgContents = [{ text: message }];
       if (files && Array.isArray(files)) {
-        files.forEach((f: any) => {
+        files.forEach((f) => {
           if (f.base64 && f.mimeType) {
             msgContents.push({
               inlineData: {
-                data: f.base64.split(',')[1] || f.base64,
+                data: f.base64.split(",")[1] || f.base64,
                 mimeType: f.mimeType
               }
             });
           }
         });
       }
-
       const response = await callGeminiWithRetry(() => chat.sendMessage({ message: msgContents }));
       res.json({ text: response.text });
-    } catch (error: any) {
+    } catch (error) {
       console.warn("[Assistant Error]", error?.message || "Unknown error");
       res.json({ text: "I'm having trouble thinking right now. Could you please ask me again in a moment?" });
     }
   });
-
-  // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
+    const vite = await (0, import_vite.createServer)({
       server: { middlewareMode: true },
-      appType: "spa",
+      appType: "spa"
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+    const distPath = import_path.default.join(process.cwd(), "dist");
+    app.use(import_express.default.static(distPath));
+    app.get("*", (req, res) => {
+      res.sendFile(import_path.default.join(distPath, "index.html"));
     });
   }
-
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
 }
-
-startServer().catch(err => {
+startServer().catch((err) => {
   console.error("FATAL ERROR: Failed to start server", err);
   process.exit(1);
 });
+//# sourceMappingURL=server.cjs.map

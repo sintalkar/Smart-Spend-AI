@@ -6,3 +6,6 @@ coverage/
 *.log
 .env*
 !.env.example
+git-temp/
+node-temp/
+*.zip

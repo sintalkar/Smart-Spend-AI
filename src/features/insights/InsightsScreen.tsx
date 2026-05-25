@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { PieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area, XAxis, Tooltip as RechartsTooltip, ReferenceLine } from 'recharts';
-import { Sparkles, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, Activity, Smile, AlertTriangle, Lightbulb, Coffee, Car, ShoppingBag, ArrowUpRight, ArrowDownRight, RefreshCw, Download } from 'lucide-react';
+import { Sparkles, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, Activity, Smile, AlertTriangle, Lightbulb, Coffee, Car, ShoppingBag, ArrowUpRight, ArrowDownRight, RefreshCw, Download, Target, Coins, ShieldAlert, Award } from 'lucide-react';
 import clsx from 'clsx';
 import { db } from '../../db';
 import { TransactionType } from '../../db/models';
@@ -87,6 +87,8 @@ export default function InsightsScreen() {
       return [];
     })
   , [currentDate, isYearly, prevDate]) || [];
+
+  const budgets = useLiveQuery(() => db.budgets.toArray()) || [];
 
   // Data Aggregation
   const { totalSpent, income, categoryBreakdown, chartData, categoryTrends } = useMemo(() => {
@@ -187,12 +189,22 @@ export default function InsightsScreen() {
     setLoadingInsights(true);
     setErrorInsights(false);
     try {
+      const globalBudget = budgets.find(b => b.categoryId === 'global')?.amount || 10000;
+      const categoryBudgets: Record<string, number> = {};
+      budgets.forEach(b => {
+        if (b.categoryId && b.categoryId !== 'global') {
+          categoryBudgets[b.categoryId] = b.amount;
+        }
+      });
+
       const data = await insightsService.generateInsights(
         isYearly ? currentDate.getFullYear().toString() : format(currentDate, 'MMMM yyyy'),
         totalSpent,
         income,
         categoryBreakdown,
         {}, // previousPeriodBreakdown
+        globalBudget,
+        categoryBudgets
       );
       if (data) setInsights(data);
       else setErrorInsights(true);
@@ -205,7 +217,7 @@ export default function InsightsScreen() {
 
   useEffect(() => {
     fetchInsights();
-  }, [currentDate, totalSpent, income]); // Refetch if major data changes
+  }, [currentDate, totalSpent, income, budgets]); // Refetch if major data or budgets change
 
   // Format data for Donut
   const pieData = Object.keys(categoryBreakdown).map((k, i) => ({
@@ -216,9 +228,6 @@ export default function InsightsScreen() {
   }));
 
   const avgDaily = totalSpent / (chartData.length || 1);
-
-  const isThisMonth = isSameMonth(currentDate, new Date());
-  const isThisYear = currentDate.getFullYear() === new Date().getFullYear();
 
   return (
     <div className="flex flex-col h-full bg-background pt-safe overflow-y-auto no-scrollbar pb-32">
@@ -281,186 +290,244 @@ export default function InsightsScreen() {
              </button>
           </div>
           
-          {/* AI Summary Card */}
-          <motion.div 
-             initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-             className="relative overflow-hidden glass-card rounded-3xl p-6 shadow-[0_10px_40px_-10px_rgba(108,99,255,0.2)]"
-          >
-             <div className="absolute top-0 right-0 w-32 h-32 bg-primary/20 blur-[50px] rounded-full"></div>
-             
-             <div className="flex items-center gap-2 mb-3">
-               <div className="relative">
-                 <Sparkles size={18} className="text-primary relative z-10" />
+           {/* Budget Alert Banner */}
+           {insights && insights.alert && (
+             <motion.div 
+               initial={{ opacity: 0, scale: 0.95 }} 
+               animate={{ opacity: 1, scale: 1 }}
+               className="relative overflow-hidden border border-error/20 bg-error/10 rounded-3xl p-5 shadow-lg flex gap-4"
+             >
+               <div className="absolute top-0 right-0 w-24 h-24 bg-error/10 blur-2xl rounded-full" />
+               <div className="w-12 h-12 rounded-2xl bg-error/20 flex items-center justify-center text-error shrink-0 self-center">
+                 <ShieldAlert size={24} className="animate-pulse" />
+               </div>
+               <div>
+                 <h4 className="text-sm font-bold text-white mb-1 uppercase tracking-wider">Urgent Alert</h4>
+                 <p className="text-xs text-error-light font-medium leading-relaxed">
+                   {insights.alert_message}
+                 </p>
+               </div>
+             </motion.div>
+           )}
+
+           {/* Spending Progress Card */}
+           {insights && (
+             <motion.div 
+               initial={{ opacity: 0, y: 15 }} 
+               animate={{ opacity: 1, y: 0 }}
+               className="glass-card rounded-[2rem] p-6 relative overflow-hidden"
+             >
+               <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 blur-3xl rounded-full" />
+               
+               <div className="flex justify-between items-center mb-4">
+                 <div className="flex items-center gap-2">
+                   <Target size={16} className="text-primary" />
+                   <span className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em]">Budget Usage</span>
+                 </div>
+                 <span className={clsx(
+                   "text-sm font-mono font-black",
+                   insights.spending_percentage >= 80 ? "text-error" :
+                   insights.spending_percentage >= 60 ? "text-yellow-500" :
+                   "text-success"
+                 )}>
+                   {insights.spending_percentage}% Used
+                 </span>
+               </div>
+
+               {/* Modern custom HSL bar */}
+               <div className="h-4 bg-white/5 border border-white/5 rounded-full overflow-hidden relative">
                  <motion.div 
-                   animate={{ scale: [1, 1.5, 1], opacity: [0.5, 0, 0.5] }}
-                   transition={{ repeat: Infinity, duration: 2 }}
-                   className="absolute inset-0 bg-primary rounded-full blur-sm"
+                   initial={{ width: 0 }}
+                   animate={{ width: `${Math.min(insights.spending_percentage, 100)}%` }}
+                   transition={{ duration: 1, ease: "easeOut" }}
+                   className={clsx(
+                     "h-full rounded-full relative",
+                     insights.spending_percentage >= 80 ? "bg-gradient-to-r from-error to-pink-500 shadow-[0_0_12px_rgba(255,71,87,0.4)]" :
+                     insights.spending_percentage >= 60 ? "bg-gradient-to-r from-yellow-500 to-orange-400 shadow-[0_0_12px_rgba(245,166,35,0.4)]" :
+                     "bg-gradient-to-r from-success to-emerald-400 shadow-[0_0_12px_rgba(46,213,115,0.4)]"
+                   )}
                  />
                </div>
-               <span className="text-xs font-semibold text-primary uppercase tracking-widest">Smart Insight</span>
-             </div>
 
-             <div className="min-h-[80px]">
-               {loadingInsights ? (
-                 <div className="space-y-2">
-                   <div className="h-4 bg-white/10 rounded w-full animate-pulse"></div>
-                   <div className="h-4 bg-white/10 rounded w-5/6 animate-pulse"></div>
-                   <div className="h-4 bg-white/10 rounded w-4/6 animate-pulse"></div>
+               {insights.motivational_message && (
+                 <div className="mt-4 flex gap-2 items-center bg-white/5 border border-white/5 rounded-2xl p-3">
+                   <Award size={16} className="text-primary shrink-0" />
+                   <p className="text-[11px] text-white/70 leading-relaxed font-medium">
+                     {insights.motivational_message}
+                   </p>
                  </div>
-               ) : errorInsights ? (
-                 <div className="flex items-center justify-between">
-                    <p className="text-gray-400 text-sm">Failed to generate insights.</p>
-                    <button onClick={fetchInsights} className="text-primary p-2 bg-primary/10 rounded-full"><RefreshCw size={16}/></button>
-                 </div>
-               ) : insights ? (
-                 <p className="text-white text-[15px] leading-relaxed font-medium">
-                   <TypewriterText text={insights.summary} />
-                 </p>
-               ) : (
-                 <p className="text-gray-500 text-sm italic">Not enough data to generate insights for this period.</p>
                )}
-             </div>
-          </motion.div>
+             </motion.div>
+           )}
 
-          {/* Donut Chart Component */}
-          {pieData.length > 0 && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }}>
-              <h3 className="title-bold text-lg mb-4">Breakdown</h3>
-              <div className="bg-surface rounded-3xl p-6 flex flex-col items-center relative aspect-square max-h-[300px]">
-                 <ResponsiveContainer width="100%" height="100%">
-                   <PieChart>
-                     <Pie
-                       data={pieData}
-                       cx="50%" cy="50%"
-                       innerRadius="70%" outerRadius="90%"
-                       paddingAngle={5}
-                       dataKey="value"
-                       stroke="none"
-                       isAnimationActive={true}
-                     >
-                       {pieData.map((entry, index) => (
-                         <Cell key={`cell-${index}`} fill={entry.color} />
-                       ))}
-                     </Pie>
-                     <RechartsTooltip 
-                       formatter={(value: number) => [`₹${value.toFixed(2)}`, 'Spent']}
-                       contentStyle={{ backgroundColor: '#1C2333', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px' }}
-                     />
-                   </PieChart>
-                 </ResponsiveContainer>
-                 <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                    <p className="text-gray-500 text-xs font-semibold uppercase tracking-widest mb-1">Total</p>
-                    <p className="text-2xl font-mono font-bold text-white">₹{totalSpent.toFixed(0)}</p>
-                 </div>
-              </div>
-            </motion.div>
-          )}
+           {/* Donut Chart Component */}
+           {pieData.length > 0 && (
+             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }}>
+               <h3 className="title-bold text-lg mb-4">Expense Distribution</h3>
+               <div className="bg-surface rounded-3xl p-6 flex flex-col items-center relative aspect-square max-h-[300px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={pieData}
+                        cx="50%" cy="50%"
+                        innerRadius="70%" outerRadius="90%"
+                        paddingAngle={5}
+                        dataKey="value"
+                        stroke="none"
+                        isAnimationActive={true}
+                      >
+                        {pieData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <RechartsTooltip 
+                        formatter={(value: number) => [`₹${value.toFixed(2)}`, 'Spent']}
+                        contentStyle={{ backgroundColor: '#1C2333', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px' }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                     <p className="text-gray-500 text-xs font-semibold uppercase tracking-widest mb-1">Total</p>
+                     <p className="text-2xl font-mono font-bold text-white">₹{totalSpent.toFixed(0)}</p>
+                  </div>
+               </div>
+             </motion.div>
+           )}
 
-          {/* Main Chart */}
-          {chartData.length > 0 && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>
-              <h3 className="title-bold text-lg mb-4">{isYearly ? 'Monthly Breakdown' : 'Daily Trend'}</h3>
-              <div className="bg-surface rounded-3xl p-4 h-64 border border-white/5">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={chartData} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="colorSpent" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#6C63FF" stopOpacity={0.4}/>
-                        <stop offset="95%" stopColor="#6C63FF" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <XAxis dataKey="date" tick={{fill: '#666', fontSize: 10}} axisLine={false} tickLine={false} />
-                    <RechartsTooltip 
-                      formatter={(val: number) => [`₹${val.toFixed(2)}`, 'Spent']}
-                      contentStyle={{ backgroundColor: '#1C2333', border: 'none', borderRadius: '12px', fontSize: '12px' }}
-                      itemStyle={{ color: '#fff' }}
-                      labelStyle={{ color: '#aaa', marginBottom: '4px' }}
-                    />
-                    {!isYearly && <ReferenceLine y={avgDaily} stroke="#ffffff" strokeOpacity={0.2} strokeDasharray="3 3" />}
-                    <Area type="monotone" dataKey="amount" stroke="#6C63FF" strokeWidth={3} fillOpacity={1} fill="url(#colorSpent)" />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </motion.div>
-          )}
-
-          {/* Smart Suggestions Carousel */}
-          {insights && insights.suggestions && insights.suggestions.length > 0 && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}>
-              <h3 className="title-bold text-lg mb-4">Smart Suggestions</h3>
-              <div className="flex overflow-x-auto no-scrollbar gap-4 -mx-6 px-6 pb-4">
-                 {insights.suggestions.map((sug, i) => (
-                   <div key={i} className="min-w-[260px] max-w-[280px] bg-primary/10 border border-primary/20 rounded-3xl p-5 flex-shrink-0 relative overflow-hidden group">
-                     {/* Gradient highlight depending on difficulty */}
-                     <div className={clsx(
-                       "absolute top-0 right-0 w-24 h-24 blur-3xl opacity-40 rounded-full",
-                       sug.difficulty === 'easy' ? "bg-success" : sug.difficulty === 'medium' ? "bg-yellow-500" : "bg-error"
-                     )}></div>
+           {/* AI Top Overspending Analysis */}
+           {insights && insights.top_overspending_categories && insights.top_overspending_categories.length > 0 && (
+             <motion.div 
+               initial={{ opacity: 0, y: 15 }} 
+               animate={{ opacity: 1, y: 0 }}
+               transition={{ delay: 0.15 }}
+             >
+               <h3 className="title-bold text-lg mb-4">Overspending Hotspots</h3>
+               <div className="space-y-3">
+                 {insights.top_overspending_categories.map((cat, idx) => (
+                   <div key={idx} className="bg-surface border border-white/5 p-4 rounded-3xl relative overflow-hidden group">
+                     <div className="absolute top-0 right-0 w-16 h-16 bg-error/5 blur-xl rounded-full" />
                      
-                     <div className="flex items-start gap-4 relatie z-10 mb-4">
-                        <div className="text-3xl">{sug.icon_emoji || '💡'}</div>
-                        <div>
-                          <h4 className="font-bold text-white mb-1 line-clamp-1">{sug.title}</h4>
-                          <span className={clsx(
-                            "text-[10px] uppercase tracking-widest font-bold px-2 py-0.5 rounded flex w-max",
-                            sug.difficulty === 'easy' ? "bg-success/20 text-success" : 
-                            sug.difficulty === 'medium' ? "bg-yellow-500/20 text-yellow-500" : 
-                            "bg-error/20 text-error"
-                          )}>
-                             {sug.difficulty}
-                          </span>
-                        </div>
+                     <div className="flex justify-between items-start mb-2">
+                       <div>
+                         <h4 className="font-bold text-white text-sm">{cat.category}</h4>
+                         <span className="text-[9px] uppercase tracking-wider text-error font-black">
+                           ₹{cat.excess.toLocaleString()} excess
+                         </span>
+                       </div>
+                       <div className="text-right">
+                         <span className="text-xs font-mono font-bold text-white">₹{cat.amount_spent.toLocaleString()} spent</span>
+                         <p className="text-[9px] text-white/30 uppercase font-medium mt-0.5">Limit: ₹{cat.recommended_max.toLocaleString()}</p>
+                       </div>
                      </div>
-                     <p className="text-sm text-gray-300 leading-relaxed mb-4 line-clamp-2">
-                       {sug.description}
+
+                     <p className="text-[11px] text-white/70 bg-black/20 rounded-xl p-2.5 leading-relaxed font-medium mt-3 border border-white/5">
+                       {cat.insight}
                      </p>
-                     
-                     <div className="bg-black/30 rounded-xl p-3 flex justify-between items-center border border-white/5">
-                        <span className="text-xs text-gray-400 font-medium">Est. Savings</span>
-                        <span className="text-success font-mono font-bold">₹{sug.estimated_savings_per_month}/mo</span>
-                     </div>
                    </div>
                  ))}
-              </div>
-            </motion.div>
-          )}
+               </div>
+             </motion.div>
+           )}
 
-          {/* Category Trends Section */}
-          {categoryTrends.length > 0 && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}>
-              <h3 className="title-bold text-lg mb-4">Category Trends</h3>
-              <div className="space-y-3">
-                 {categoryTrends.map(trend => {
-                    const CatIcon = categoryIcons[trend.categoryId] || Activity;
-                    const isUp = trend.change > 0;
-                    const isGood = !isUp; // Up means more spent, which is bad for expenses
-                    
-                    return (
-                      <div key={trend.categoryId} className="bg-surface border border-white/5 p-4 rounded-2xl flex items-center justify-between">
-                         <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 bg-white/5 rounded-xl flex items-center justify-center">
-                               <CatIcon size={20} className="text-gray-300" />
-                            </div>
-                            <div>
-                               <p className="font-semibold text-white capitalize">{categoryNames[trend.categoryId] || trend.categoryId}</p>
-                               <div className="flex items-center gap-1 mt-0.5">
-                                 {isUp ? <ArrowUpRight size={14} className={isGood ? "text-success" : "text-error"}/> : <ArrowDownRight size={14} className={isGood ? "text-success" : "text-error"}/>}
-                                 <span className={clsx("text-xs font-mono font-medium", isGood ? "text-success" : "text-error")}>
-                                   {Math.abs(trend.change).toFixed(1)}% vs last mo
-                                 </span>
-                               </div>
-                            </div>
+           {/* Main Chart */}
+           {chartData.length > 0 && (
+             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>
+               <h3 className="title-bold text-lg mb-4">{isYearly ? 'Monthly Breakdown' : 'Daily Trend'}</h3>
+               <div className="bg-surface rounded-3xl p-4 h-64 border border-white/5">
+                 <ResponsiveContainer width="100%" height="100%">
+                   <AreaChart data={chartData} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
+                     <defs>
+                       <linearGradient id="colorSpent" x1="0" y1="0" x2="0" y2="1">
+                         <stop offset="5%" stopColor="#6C63FF" stopOpacity={0.4}/>
+                         <stop offset="95%" stopColor="#6C63FF" stopOpacity={0}/>
+                       </linearGradient>
+                     </defs>
+                     <XAxis dataKey="date" tick={{fill: '#666', fontSize: 10}} axisLine={false} tickLine={false} />
+                     <RechartsTooltip 
+                       formatter={(val: number) => [`₹${val.toFixed(2)}`, 'Spent']}
+                       contentStyle={{ backgroundColor: '#1C2333', border: 'none', borderRadius: '12px', fontSize: '12px' }}
+                       itemStyle={{ color: '#fff' }}
+                       labelStyle={{ color: '#aaa', marginBottom: '4px' }}
+                     />
+                     {!isYearly && <ReferenceLine y={avgDaily} stroke="#ffffff" strokeOpacity={0.2} strokeDasharray="3 3" />}
+                     <Area type="monotone" dataKey="amount" stroke="#6C63FF" strokeWidth={3} fillOpacity={1} fill="url(#colorSpent)" />
+                   </AreaChart>
+                 </ResponsiveContainer>
+               </div>
+             </motion.div>
+           )}
+
+           {/* Smart Savings Suggestions Carousel */}
+           {insights && insights.savings_suggestions && insights.savings_suggestions.length > 0 && (
+             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}>
+               <h3 className="title-bold text-lg mb-4">Recommended Cuts</h3>
+               <div className="flex overflow-x-auto no-scrollbar gap-4 -mx-6 px-6 pb-4">
+                  {insights.savings_suggestions.map((sug, i) => (
+                    <div key={i} className="min-w-[260px] max-w-[280px] bg-primary/10 border border-primary/20 rounded-3xl p-5 flex-shrink-0 relative overflow-hidden group">
+                      <div className="absolute top-0 right-0 w-24 h-24 blur-3xl opacity-40 rounded-full bg-success/20"></div>
+                      
+                      <div className="flex items-start gap-4 relative z-10 mb-4">
+                         <div className="text-3xl">💡</div>
+                         <div>
+                           <h4 className="font-bold text-white mb-1 line-clamp-1">{sug.title}</h4>
+                           <span className="text-[9px] uppercase tracking-widest font-black text-success">
+                              Actionable Cut
+                           </span>
                          </div>
-                         <p className="font-mono font-semibold text-white">₹{trend.amount.toFixed(0)}</p>
                       </div>
-                    );
-                 })}
-              </div>
-            </motion.div>
-          )}
+                      <p className="text-xs text-gray-300 leading-relaxed mb-4 line-clamp-3 font-medium min-h-[48px]">
+                        {sug.detail}
+                      </p>
+                      
+                      <div className="bg-black/30 rounded-xl p-3 flex justify-between items-center border border-white/5">
+                         <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Est. Savings</span>
+                         <span className="text-success font-mono font-bold">₹{sug.estimated_monthly_savings}/mo</span>
+                      </div>
+                    </div>
+                  ))}
+               </div>
+             </motion.div>
+           )}
 
-       </div>
-    </div>
+           {/* Tailored Investment suggestions */}
+           {insights && insights.investment_suggestions && insights.investment_suggestions.length > 0 && (
+             <motion.div 
+               initial={{ opacity: 0, y: 15 }} 
+               animate={{ opacity: 1, y: 0 }}
+               transition={{ delay: 0.35 }}
+             >
+               <h3 className="title-bold text-lg mb-4">Tailored Investment Hub</h3>
+               <div className="space-y-3">
+                 {insights.investment_suggestions.map((inv, idx) => (
+                   <div key={idx} className="bg-surface/50 border border-primary/20 p-5 rounded-3xl relative overflow-hidden group">
+                     <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 blur-2xl rounded-full" />
+                     
+                     <div className="flex justify-between items-start gap-2 mb-3">
+                       <div className="flex items-center gap-3">
+                         <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center text-primary shadow-lg">
+                           <Coins size={18} />
+                         </div>
+                         <div>
+                           <h4 className="font-bold text-white text-sm">{inv.title}</h4>
+                           <p className="text-[9px] text-white/30 uppercase tracking-widest font-black mt-0.5">Platform: {inv.platform}</p>
+                         </div>
+                       </div>
+                       <div className="text-right">
+                         <span className="text-xs font-mono font-black text-white">₹{inv.amount.toLocaleString()}/mo</span>
+                         <p className="text-[9px] text-success uppercase font-bold mt-0.5">{inv.expected_return}</p>
+                       </div>
+                     </div>
+
+                     <p className="text-xs text-gray-400 leading-relaxed font-medium mt-2 bg-black/25 rounded-2xl p-3 border border-white/5">
+                       {inv.detail}
+                     </p>
+                   </div>
+                 ))}
+               </div>
+             </motion.div>
+           )}
+
+        </div>
+     </div>
   );
 }
-

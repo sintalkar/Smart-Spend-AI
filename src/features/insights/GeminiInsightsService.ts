@@ -1,16 +1,35 @@
 import { adminService } from '../admin/AdminService';
 
-export interface SmartSuggestion {
+export interface OverspendingCategory {
+  category: string;
+  amount_spent: number;
+  recommended_max: number;
+  excess: number;
+  insight: string;
+}
+
+export interface SavingsSuggestion {
   title: string;
-  description: string;
-  estimated_savings_per_month: number;
-  difficulty: 'easy' | 'medium' | 'hard';
-  icon_emoji: string;
+  detail: string;
+  estimated_monthly_savings: number;
+}
+
+export interface InvestmentSuggestion {
+  title: string;
+  detail: string;
+  amount: number;
+  platform: string;
+  expected_return: string;
 }
 
 export interface InsightsData {
-  summary: string;
-  suggestions: SmartSuggestion[];
+  alert: boolean;
+  alert_message: string;
+  spending_percentage: number;
+  top_overspending_categories: OverspendingCategory[];
+  savings_suggestions: SavingsSuggestion[];
+  investment_suggestions: InvestmentSuggestion[];
+  motivational_message: string;
 }
 
 export class GeminiInsightsService {
@@ -49,7 +68,9 @@ export class GeminiInsightsService {
     totalSpent: number,
     income: number,
     categoryBreakdown: Record<string, number>,
-    previousPeriodBreakdown: Record<string, number>
+    previousPeriodBreakdown: Record<string, number>,
+    totalBudget: number,
+    categoryBudgets: Record<string, number>
   ): Promise<InsightsData | null> {
     adminService.logEvent('INSIGHT_GENERATED');
 
@@ -62,7 +83,9 @@ export class GeminiInsightsService {
           totalSpent,
           income,
           categoryBreakdown,
-          previousPeriodBreakdown
+          previousPeriodBreakdown,
+          totalBudget,
+          categoryBudgets
         })
       });
 
