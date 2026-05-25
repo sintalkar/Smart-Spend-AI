@@ -1,4 +1,6 @@
 
+import { auth } from '../../firebase';
+
 export interface ReceiptItem {
   id?: string;
   name: string;
@@ -40,22 +42,29 @@ export class GeminiReceiptScanner {
     return response.json();
   }
 
-  public async scanReceipt(base64Image: string, mimeType: string): Promise<ReceiptData | null> {
+  public async scanReceipt(base64Image: string, mimeType: string, isBankStatement = false): Promise<ReceiptData | null> {
     try {
-      const response = await fetch('/api/ai/scan-receipt', {
+      const response = await fetch('/api/gemini/parse-receipt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image: base64Image, mimeType })
+        body: JSON.stringify({ 
+          image: base64Image, 
+          mimeType,
+          userId: auth.currentUser?.uid,
+          isBankStatement
+        })
       });
 
       const parsedData = await this.handleResponse(response, "Receipt Scanning Error");
       
       // Give items unique IDs for UI selection state
-      parsedData.items = (parsedData.items || []).map((item: any, index: number) => ({
-        ...item,
-        id: `item-${index}`,
-        selected: true
-      }));
+      if (parsedData.items) {
+        parsedData.items = parsedData.items.map((item: any, index: number) => ({
+          ...item,
+          id: `item-${index}`,
+          selected: true
+        }));
+      }
       
       return parsedData as ReceiptData;
     } catch (e: any) {
@@ -69,3 +78,4 @@ export class GeminiReceiptScanner {
 }
 
 export const receiptScannerService = new GeminiReceiptScanner();
+

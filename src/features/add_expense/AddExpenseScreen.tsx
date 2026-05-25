@@ -66,10 +66,15 @@ export default function AddExpenseScreen() {
     
     setIsCategorizing(true);
     try {
-      const response = await fetch('/api/ai/categorize', {
+      const { auth } = await import('../../firebase');
+      const response = await fetch('/api/gemini/categorize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ merchant: merchantName, note: noteText })
+        body: JSON.stringify({ 
+          merchant: merchantName, 
+          note: noteText,
+          userId: auth.currentUser?.uid
+        })
       });
       if (response.ok) {
         const data = await response.json();
@@ -119,7 +124,24 @@ export default function AddExpenseScreen() {
 
   // Debounced AI call
   useEffect(() => {
-    const timer = setTimeout(() => {
+    const timer = setTimeout(async () => {
+      if (merchant.length > 2) {
+        try {
+          const { merchantMemoryService } = await import('../../lib/merchantMemory');
+          const learned = await merchantMemoryService.recallMerchant(merchant);
+          if (learned) {
+            setSuggestion({
+              categoryId: learned.category,
+              confidence: 1.0,
+              reason: 'Learned from your history'
+            });
+            return;
+          }
+        } catch (e) {
+          console.warn("[Merchant Memory recall failed]", e);
+        }
+      }
+      
       if (merchant.length > 2 || note.length > 2) {
         getAiCategorization(merchant, note);
       }

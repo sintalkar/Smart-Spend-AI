@@ -130,6 +130,18 @@ export class TransactionRepository {
   async update(id: string, updates: Partial<TransactionEntity>): Promise<Result<void>> {
     try {
       await db.transactions.update(id, { ...updates, updatedAt: Date.now() });
+      if (updates.categoryId || updates.merchantName) {
+        try {
+          const fullTx = await db.transactions.get(id);
+          if (fullTx && fullTx.merchantName && fullTx.categoryId) {
+            const { merchantMemoryService } = await import('../../lib/merchantMemory');
+            const cat = await db.categories.get(fullTx.categoryId);
+            await merchantMemoryService.learnMerchant(fullTx.merchantName, fullTx.categoryId, cat?.icon || 'tag');
+          }
+        } catch (e) {
+          console.warn("[Merchant Memory Hook Error]", e);
+        }
+      }
       return { success: true, data: undefined };
     } catch (e) {
       return { success: false, error: e as Error };
@@ -139,6 +151,15 @@ export class TransactionRepository {
   async upsert(transaction: TransactionEntity): Promise<Result<string>> {
     try {
       await db.transactions.put(transaction);
+      if (transaction.merchantName && transaction.categoryId) {
+        try {
+          const { merchantMemoryService } = await import('../../lib/merchantMemory');
+          const cat = await db.categories.get(transaction.categoryId);
+          await merchantMemoryService.learnMerchant(transaction.merchantName, transaction.categoryId, cat?.icon || 'tag');
+        } catch (e) {
+          console.warn("[Merchant Memory Hook Error]", e);
+        }
+      }
       return { success: true, data: transaction.id };
     } catch (e) {
       return { success: false, error: e as Error };

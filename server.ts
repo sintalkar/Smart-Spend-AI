@@ -169,6 +169,326 @@ async function startServer() {
   };
 
   // API Routes
+  // --- Secure User Subscription & AI Rate Limiter ---
+  interface RateLimitEntry {
+    count: number;
+    lastResetDate: string; // YYYY-MM-DD
+  }
+
+  const aiUsageCache: Record<string, RateLimitEntry> = {};
+
+  const getUserSubscriptionPlan = async (userId: string): Promise<'lite' | 'pro'> => {
+    if (!userId) return 'lite';
+    try {
+      const projectId = process.env.VITE_FIREBASE_PROJECT_ID || "gen-lang-client-0104689213";
+      const databaseId = "ai-studio-3577befc-73c6-4b22-9f0d-6a0f8621814d";
+      const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${databaseId}/documents/users/${userId}`;
+      const res = await fetch(url);
+      if (!res.ok) return 'lite';
+      const data: any = await res.json();
+      
+      const plan = data?.fields?.subscription?.mapValue?.fields?.plan?.stringValue;
+      return plan === 'pro' ? 'pro' : 'lite';
+    } catch (e) {
+      console.error("Error fetching user plan:", e);
+      return 'lite';
+    }
+  };
+
+  const checkRateLimit = (userId: string, isPro: boolean): { allowed: boolean; count: number; limit: number } => {
+    const today = new Date().toISOString().split('T')[0];
+    const limit = isPro ? 200 : 30;
+    
+    if (!aiUsageCache[userId]) {
+      aiUsageCache[userId] = { count: 0, lastResetDate: today };
+    }
+    
+    const userRecord = aiUsageCache[userId];
+    if (userRecord.lastResetDate !== today) {
+      userRecord.count = 0;
+      userRecord.lastResetDate = today;
+    }
+    
+    if (userRecord.count >= limit) {
+      return { allowed: false, count: userRecord.count, limit };
+    }
+    
+    userRecord.count++;
+    return { allowed: true, count: userRecord.count, limit };
+  };
+
+  // --- Secure Gemini proxy endpoints ---
+  app.post('/api/gemini/parse-transaction', async (req, res) => {
+    if (!ensureApiKey(res)) return;
+    const { text, context, userId } = req.body;
+
+    const plan = await getUserSubscriptionPlan(userId);
+    const limitCheck = checkRateLimit(userId || "anonymous", plan === 'pro');
+    if (!limitCheck.allowed) {
+      return res.status(429).json({
+        error: `Daily AI limit reached (${limitCheck.limit} requests/day). Upgrade to PRO for higher limits.`,
+        code: "RATE_LIMIT_EXCEEDED"
+      });
+    }
+
+    try {
+      const prompt = `Parse the following transaction text into a JSON object:
+      "${text}"
+      ${context ? `Context: ${context}` : ''}
+      
+      Current Date: ${new Date().toISOString()}
+      
+      Output format:
+      {
+        "amount": number,
+        "description": string,
+        "categoryId": "shopping" | "food_dining" | "transportation" | "entertainment" | "bills_utilities" | "other" | string,
+        "type": "DEBIT" | "CREDIT",
+        "dateTime": number (timestamp ms),
+        "merchant": string,
+        "confidence": number (0-1),
+        "upiRefId": string (optional),
+        "bankName": string (optional),
+        "accountLast4": string (optional)
+      }
+      
+      If the user says "spent", it's DEBIT. If "received" or "earned", it's CREDIT.
+      Resolve relative dates (yesterday, last Friday, 2 days ago, etc.) to actual timestamps based on Current Date.
+      Default category is "other" if unsure.`;
+
+      const response = await callGeminiWithRetry(() => getAI().models.generateContent({
+        model: "gemini-flash-lite-latest",
+        contents: prompt,
+        config: {
+          temperature: 0,
+          responseMimeType: "application/json",
+        }
+      }));
+
+      res.json(parseAIJsonResponse(response.text));
+    } catch (error: any) {
+      console.warn("[Parse Error]", error?.message || "Unknown error");
+      res.status(500).json({ error: "Failed to automatically parse. Please enter these details manually." });
+    }
+  });
+
+  app.post('/api/gemini/parse-receipt', async (req, res) => {
+    if (!ensureApiKey(res)) return;
+    const { image, mimeType, userId, isBankStatement } = req.body;
+
+    const plan = await getUserSubscriptionPlan(userId);
+    const limitCheck = checkRateLimit(userId || "anonymous", plan === 'pro');
+    if (!limitCheck.allowed) {
+      return res.status(429).json({
+        error: `Daily AI limit reached (${limitCheck.limit} requests/day). Upgrade to PRO for higher limits.`,
+        code: "RATE_LIMIT_EXCEEDED"
+      });
+    }
+
+    try {
+      let prompt = `Analyze this receipt image. Extract all data as JSON:
+      {merchant_name, date, items: [{name, quantity, unit_price, total_price, category}], subtotal, tax, discount, total, payment_method, currency}
+      Categories: food_dining, groceries, shopping, healthcare, entertainment, other
+      Use null for missing fields. All prices as numbers (no currency symbols). 
+      Always find and return the final balance due on the receipt, avoiding other numerical values for the total field.
+      Currency should be 3-letter ISO code. Check values carefully to ensure the math generally adds up. Give a confidence score (High, Medium, Low).`;
+
+      if (isBankStatement) {
+        prompt = `Analyze this bank statement PDF/image page. Extract all transaction line items as a JSON list:
+        {
+          "transactions": [
+            {
+              "date": "YYYY-MM-DD",
+              "amount": number,
+              "merchant": "Clean merchant or description name",
+              "type": "DEBIT" | "CREDIT",
+              "balance": number
+            }
+          ]
+        }
+        Return ONLY valid JSON matching this schema. Capture every visible transaction. If no transactions are found, return empty list.`;
+      }
+
+      console.log("[Receipt Scan] Sending request to AI model...");
+      const response = await callGeminiWithRetry(() => getAI().models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: [
+          {
+            role: "user",
+            parts: [
+              { text: prompt },
+              {
+                inlineData: {
+                  data: image.split(',')[1] || image,
+                  mimeType: mimeType
+                }
+              }
+            ]
+          }
+        ],
+        config: {
+          temperature: 0,
+          systemInstruction: "You are an expert financial document parser. Return ONLY valid JSON matching the requested schema.",
+          responseMimeType: "application/json",
+        }
+      }));
+
+      console.log("[Receipt Scan] Received response from AI model.");
+      res.json(parseAIJsonResponse(response.text));
+    } catch (error: any) {
+      console.error("[Receipt Scan Error] Exception caught:", error);
+      res.status(500).json({ error: "Failed to scan receipt. Please enter the details manually." });
+    }
+  });
+
+  app.post('/api/gemini/insights', async (req, res) => {
+    if (!ensureApiKey(res)) return;
+    const { period, totalSpent, income, categoryBreakdown, previousPeriodBreakdown, totalBudget, categoryBudgets, userId } = req.body;
+
+    const plan = await getUserSubscriptionPlan(userId);
+    const limitCheck = checkRateLimit(userId || "anonymous", plan === 'pro');
+    if (!limitCheck.allowed) {
+      return res.status(429).json({
+        error: `Daily AI limit reached (${limitCheck.limit} requests/day). Upgrade to PRO for higher limits.`,
+        code: "RATE_LIMIT_EXCEEDED"
+      });
+    }
+
+    try {
+      const budget = totalBudget || 10000;
+      const spendingPercentage = budget > 0 ? Math.round((totalSpent / budget) * 100) : 0;
+      const alertTriggered = spendingPercentage >= 60;
+
+      const prompt = `Analyze financial data for the period: ${period}
+      Total Spent: ₹${totalSpent}
+      Monthly Income: ₹${income}
+      Total Budget: ₹${budget}
+      Spending Percentage: ${spendingPercentage}%
+      Alert Status: ${alertTriggered ? 'Triggered (>=60% spent)' : 'Normal (<60% spent)'}
+      Category spending breakdown: ${JSON.stringify(categoryBreakdown)}
+      Category-specific budget limits (if any): ${JSON.stringify(categoryBudgets || {})}
+      vs Previous period category breakdown: ${JSON.stringify(previousPeriodBreakdown || {})}
+
+      RESPONSE FORMAT: Always respond in this EXACT JSON format:
+      {
+        "alert": ${alertTriggered},
+        "alert_message": "your alert message here",
+        "spending_percentage": ${spendingPercentage},
+        "top_overspending_categories": [
+          {
+            "category": "Food & Dining",
+            "amount_spent": 4200,
+            "recommended_max": 2500,
+            "excess": 1700,
+            "insight": "You ordered food delivery 18 times this month."
+          }
+        ],
+        "savings_suggestions": [
+          {
+            "title": "Cut Food Delivery",
+            "detail": "Reducing delivery orders from 18 to 6 per month saves approx ₹1,800.",
+            "estimated_monthly_savings": 1800
+          }
+        ],
+        "investment_suggestions": [
+          {
+            "title": "Start a SIP in Index Fund",
+            "detail": "Invest your projected savings of ₹2,500/month in a Nifty 50 Index Fund via Groww or Zerodha. Expected annual return: 12-14%.",
+            "amount": 2500,
+            "platform": "Groww / Zerodha",
+            "expected_return": "12-14% annually"
+          }
+        ],
+        "motivational_message": "small encouraging message here"
+      }`;
+
+      const response = await callGeminiWithRetry(() => getAI().models.generateContent({
+        model: "gemini-flash-lite-latest",
+        contents: prompt,
+        config: {
+          temperature: 0,
+          responseMimeType: "application/json",
+        }
+      }));
+
+      res.json(parseAIJsonResponse(response.text));
+    } catch (error: any) {
+      console.warn("[Insights Error]", error?.message || "Unknown error");
+      res.status(500).json({ error: "Failed to generate insights." });
+    }
+  });
+
+  app.post('/api/gemini/chat', async (req, res) => {
+    if (!ensureApiKey(res)) return;
+    const { message, history, context, userId } = req.body;
+
+    const plan = await getUserSubscriptionPlan(userId);
+    const limitCheck = checkRateLimit(userId || "anonymous", plan === 'pro');
+    if (!limitCheck.allowed) {
+      return res.status(429).json({
+        error: `Daily AI limit reached (${limitCheck.limit} requests/day). Upgrade to PRO for higher limits.`,
+        code: "RATE_LIMIT_EXCEEDED"
+      });
+    }
+
+    try {
+      const chat = getAI().chats.create({
+        model: "gemini-2.5-flash",
+        config: {
+          systemInstruction: `You are "Smart Spend Personal CA", a highly-qualified, direct, firm, and caring Chartered Accountant (CA) with deep expertise in Indian personal finance and taxation.
+          Tone is professional, bulleted, firm and direct. Under 250 words limit.`,
+        },
+      });
+
+      if (history && Array.isArray(history)) {
+        chat.history = history.map(h => ({
+          role: h.role === 'model' ? 'model' : 'user',
+          parts: [{ text: h.text || '' }]
+        }));
+      }
+
+      const fullMessage = `${context ? `Context: ${JSON.stringify(context)}\n\n` : ''}Message: ${message}`;
+      const response = await callGeminiWithRetry(() => chat.sendMessage({ message: fullMessage }));
+      res.json({ text: response.text });
+    } catch (error: any) {
+      console.warn("[CA Assistant Error]", error?.message || "Unknown error");
+      res.status(500).json({ error: "Failed to process assistant chat message." });
+    }
+  });
+
+  // --- Razorpay Mock Integrations ---
+  app.post('/api/razorpay/create-order', async (req, res) => {
+    const { amount, currency } = req.body;
+    try {
+      const orderId = `order_${Math.random().toString(36).substr(2, 9)}`;
+      res.json({
+        id: orderId,
+        entity: "order",
+        amount: amount || 14900,
+        amount_paid: 0,
+        amount_due: amount || 14900,
+        currency: currency || "INR",
+        receipt: `receipt_${Date.now()}`,
+        status: "created",
+        created_at: Math.floor(Date.now() / 1000)
+      });
+    } catch (e) {
+      res.status(500).json({ error: "Failed to create payment order" });
+    }
+  });
+
+  app.post('/api/razorpay/verify-payment', async (req, res) => {
+    const { userId } = req.body;
+    try {
+      res.json({
+        status: "success",
+        message: "Subscription successfully updated to PRO"
+      });
+    } catch (e) {
+      res.status(500).json({ error: "Failed to verify payment" });
+    }
+  });
+
   app.post('/api/admin/ai-controller', async (req, res) => {
     if (!ensureApiKey(res)) return;
     const { message } = req.body;
@@ -369,9 +689,18 @@ async function startServer() {
     }
   });
 
-  app.post('/api/ai/score-tips', async (req, res) => {
+  app.post('/api/gemini/score-tips', async (req, res) => {
     if (!ensureApiKey(res)) return;
-    const { score, breakdown } = req.body;
+    const { score, breakdown, userId } = req.body;
+
+    const plan = await getUserSubscriptionPlan(userId);
+    const limitCheck = checkRateLimit(userId || "anonymous", plan === 'pro');
+    if (!limitCheck.allowed) {
+      return res.status(429).json({
+        error: `Daily AI limit reached (${limitCheck.limit} requests/day). Upgrade to PRO for higher limits.`,
+        code: "RATE_LIMIT_EXCEEDED"
+      });
+    }
 
     try {
       const prompt = `User's Financial Money Score: ${score}/100.
@@ -419,11 +748,17 @@ async function startServer() {
     }
   });
 
-  app.post('/api/ai/greet', async (req, res) => {
-    const { userName, totalBalance, monthlySpent, budgetLimit } = req.body;
+  app.post('/api/gemini/greet', async (req, res) => {
+    const { userName, totalBalance, monthlySpent, budgetLimit, userId } = req.body;
 
     if (uniqueKeys.length === 0) {
       return res.json({ greeting: `Hi ${userName}, ready to track some spends?` });
+    }
+
+    const plan = await getUserSubscriptionPlan(userId);
+    const limitCheck = checkRateLimit(userId || "anonymous", plan === 'pro');
+    if (!limitCheck.allowed) {
+      return res.json({ greeting: `Hi ${userName}, ready to track some spends? 🚀 (AI Greeting limit reached)` });
     }
 
     try {
@@ -497,9 +832,18 @@ async function startServer() {
     }
   });
 
-  app.post('/api/ai/categorize', async (req, res) => {
+  app.post('/api/gemini/categorize', async (req, res) => {
     if (!ensureApiKey(res)) return;
-    const { merchant, note } = req.body;
+    const { merchant, note, userId } = req.body;
+
+    const plan = await getUserSubscriptionPlan(userId);
+    const limitCheck = checkRateLimit(userId || "anonymous", plan === 'pro');
+    if (!limitCheck.allowed) {
+      return res.status(429).json({
+        error: `Daily AI limit reached (${limitCheck.limit} requests/day). Upgrade to PRO for higher limits.`,
+        code: "RATE_LIMIT_EXCEEDED"
+      });
+    }
 
     try {
       const prompt = `Categorize this transaction:
@@ -526,11 +870,17 @@ async function startServer() {
     }
   });
 
-  app.post('/api/ai/budget-alert', async (req, res) => {
+  app.post('/api/gemini/budget-alert', async (req, res) => {
     if (uniqueKeys.length === 0) {
       return res.json({ alert: null });
     }
-    const { monthlySpent, budgetLimit, currentPeriodTx, daysInMonth, dayOfMonth } = req.body;
+    const { monthlySpent, budgetLimit, currentPeriodTx, daysInMonth, dayOfMonth, userId } = req.body;
+
+    const plan = await getUserSubscriptionPlan(userId);
+    const limitCheck = checkRateLimit(userId || "anonymous", plan === 'pro');
+    if (!limitCheck.allowed) {
+      return res.json({ alert: "Keep an eye on your spending to stay within your budget! (AI Limit reached)" });
+    }
 
     try {
       const projection = (monthlySpent / dayOfMonth) * daysInMonth;

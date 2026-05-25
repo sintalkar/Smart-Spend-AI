@@ -15,13 +15,20 @@ export class SmartSpendDatabase extends Dexie {
   moneyScoreHistory!: EntityTable<MoneyScoreHistoryEntity, 'id'>;
   adminEvents!: EntityTable<AdminEventEntity, 'id'>;
   budgetHistory!: EntityTable<{id: string, budgetId?: string, categoryId: string, amount?: number, oldAmount?: number, newAmount?: number, reason?: string, changedAt: number}, 'id'>;
+  merchantMap!: Dexie.Table<{ merchant: string, category: string, icon: string, count: number }, string>;
+  bills!: Dexie.Table<{ id: string, name: string, amount: number, dueDay: number, category: string, isRecurring: number, notifyDaysBefore: number, isPaid: number }, string>;
+  goals!: Dexie.Table<{ id: string, name: string, targetAmount: number, savedAmount: number, targetDate: number, icon: string, color: string }, string>;
+  recurringTransactions!: Dexie.Table<{ id: string, amount: number, type: 'DEBIT' | 'CREDIT', categoryId: string, merchantName: string, frequency: string, lastRunDate: number, nextRunDate: number, isPaused: number }, string>;
+  anomalies!: Dexie.Table<{ id: string, transactionId: string, categoryId: string, amount: number, averageSpend: number, detectedAt: number, acknowledged: number }, string>;
+  netWorth!: Dexie.Table<{ id: string, type: 'asset' | 'liability', name: string, subType: string, value: number, lastUpdated: number }, string>;
+  splits!: Dexie.Table<{ id: string, transactionId: string, name: string, amount: number, settled: number }, string>;
 
   constructor() {
     super('SmartSpendDB');
 
     // Database migrations & indexing setup equivalent
     // The keys specified here map directly to frequently queried columns (indexes)
-    this.version(3).stores({
+    this.version(4).stores({
       transactions: 'id, dateTime, categoryId, type, isRecurring, isDeleted',
       categories: 'id, parentId, type, isCustom, sortOrder',
       budgets: 'id, categoryId, isActive',
@@ -29,7 +36,14 @@ export class SmartSpendDatabase extends Dexie {
       insightsCache: 'id, period',
       moneyScoreHistory: 'id, calculatedAt, period',
       adminEvents: 'id, eventType, createdAt',
-      budgetHistory: 'id, categoryId, changedAt'
+      budgetHistory: 'id, categoryId, changedAt',
+      merchantMap: 'merchant, category',
+      bills: 'id, dueDay, isRecurring',
+      goals: 'id, targetDate',
+      recurringTransactions: 'id, frequency, nextRunDate',
+      anomalies: 'id, transactionId, detectedAt',
+      netWorth: 'id, type',
+      splits: 'id, transactionId, settled'
     });
 
     // SeedDataProvider implementation resolving on application first use
@@ -45,6 +59,13 @@ export class SmartSpendDatabase extends Dexie {
     await this.moneyScoreHistory.clear();
     await this.adminEvents.clear();
     await this.budgetHistory.clear();
+    await this.merchantMap.clear();
+    await this.bills.clear();
+    await this.goals.clear();
+    await this.recurringTransactions.clear();
+    await this.anomalies.clear();
+    await this.netWorth.clear();
+    await this.splits.clear();
     // We keep categories as they are structural metadata needed for the UI to function
   }
 

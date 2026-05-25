@@ -4,22 +4,45 @@
  */
 
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { Layout } from './core/ui/Layout';
 import DashboardScreen from './features/dashboard/DashboardScreen';
-import TransactionsScreen from './features/transactions/TransactionsScreen';
-import AddExpenseScreen from './features/add_expense/AddExpenseScreen';
-import SmsDetectorScreen from './features/sms_detector/SmsDetectorScreen';
-import InsightsScreen from './features/insights/InsightsScreen';
-import MoneyScoreScreen from './features/money_score/MoneyScoreScreen';
-import AdminRoute from './features/admin/AdminRoute';
-import OnboardingScreen from './features/onboarding/OnboardingScreen';
-import SetBudgetScreen from './features/budget/SetBudgetScreen';
+
+// Lazy load non-essential screens to keep initial bundle size minimal
+const TransactionsScreen = lazy(() => import('./features/transactions/TransactionsScreen'));
+const AddExpenseScreen = lazy(() => import('./features/add_expense/AddExpenseScreen'));
+const SmsDetectorScreen = lazy(() => import('./features/sms_detector/SmsDetectorScreen'));
+const InsightsScreen = lazy(() => import('./features/insights/InsightsScreen'));
+const MoneyScoreScreen = lazy(() => import('./features/money_score/MoneyScoreScreen'));
+const OnboardingScreen = lazy(() => import('./features/onboarding/OnboardingScreen'));
+const SetBudgetScreen = lazy(() => import('./features/budget/SetBudgetScreen'));
+const InstallGuideScreen = lazy(() => import('./features/pwa/InstallGuideScreen').then(module => ({ default: module.InstallGuideScreen })));
+const LandingPage = lazy(() => import('./features/landing/LandingPage'));
+
+// Import Privacy Policy dynamically later
+const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
 
 import { AuthProvider } from './core/auth/AuthProvider';
+import { Toaster } from 'react-hot-toast';
 import { NOTIFICATION_MESSAGES, requestNotificationPermission, showNotification } from './core/utils/notifications';
-import { InstallGuideScreen } from './features/pwa/InstallGuideScreen';
-import LandingPage from './features/landing/LandingPage';
+
+function ScreenSkeleton() {
+  return (
+    <div className="p-6 space-y-6 bg-[#0B0F1A] min-h-screen text-white pt-safe animate-pulse">
+      <div className="flex justify-between items-center">
+        <div className="w-32 h-6 bg-white/5 rounded-xl"></div>
+        <div className="w-10 h-10 bg-white/5 rounded-xl"></div>
+      </div>
+      <div className="w-full h-44 bg-white/5 rounded-[2rem] border border-white/5"></div>
+      <div className="w-full h-12 bg-white/5 rounded-[2rem] border border-white/5"></div>
+      <div className="space-y-4">
+        {[1, 2, 3].map(i => (
+          <div key={i} className="w-full h-20 bg-white/5 rounded-[2rem] border border-white/5"></div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default function App() {
   const [hasSeenOnboarding, setHasSeenOnboarding] = useState(true);
@@ -79,39 +102,49 @@ export default function App() {
   if (isInitializing) return null;
 
   if (!hasSeenOnboarding) {
-    return <OnboardingScreen onComplete={() => setHasSeenOnboarding(true)} />;
-  }
-
-  const isSecretAdminPath = window.location.pathname === '/v90369-secure-access-portal';
-
-  if (isSecretAdminPath) {
     return (
-      <AuthProvider>
-        <BrowserRouter>
-          <div className="min-h-screen bg-background">
-            <AdminRoute />
-          </div>
-        </BrowserRouter>
-      </AuthProvider>
+      <Suspense fallback={<ScreenSkeleton />}>
+        <OnboardingScreen onComplete={() => setHasSeenOnboarding(true)} />
+      </Suspense>
     );
   }
 
   return (
     <AuthProvider>
+      <Toaster 
+        position="top-center" 
+        reverseOrder={false}
+        toastOptions={{
+          style: {
+            background: '#11101C',
+            color: '#FFF',
+            border: '1px solid rgba(255,255,255,0.08)',
+            borderRadius: '1.5rem',
+            fontFamily: 'Sora, sans-serif',
+            fontSize: '13px',
+            fontWeight: 'bold',
+            padding: '12px 24px',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.5)'
+          }
+        }} 
+      />
       <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Layout />}>
-            <Route index element={<DashboardScreen />} />
-            <Route path="transactions" element={<TransactionsScreen />} />
-            <Route path="add" element={<AddExpenseScreen />} />
-            <Route path="sms" element={<SmsDetectorScreen />} />
-            <Route path="insights" element={<InsightsScreen />} />
-            <Route path="score" element={<MoneyScoreScreen />} />
-            <Route path="budget" element={<SetBudgetScreen />} />
-            <Route path="install-guide" element={<InstallGuideScreen />} />
-          </Route>
-          <Route path="/landing" element={<LandingPage />} />
-        </Routes>
+        <Suspense fallback={<ScreenSkeleton />}>
+          <Routes>
+            <Route path="/" element={<Layout />}>
+              <Route index element={<DashboardScreen />} />
+              <Route path="transactions" element={<TransactionsScreen />} />
+              <Route path="add" element={<AddExpenseScreen />} />
+              <Route path="sms" element={<SmsDetectorScreen />} />
+              <Route path="insights" element={<InsightsScreen />} />
+              <Route path="score" element={<MoneyScoreScreen />} />
+              <Route path="budget" element={<SetBudgetScreen />} />
+              <Route path="install-guide" element={<InstallGuideScreen />} />
+              <Route path="privacy" element={<PrivacyPolicy />} />
+            </Route>
+            <Route path="/landing" element={<LandingPage />} />
+          </Routes>
+        </Suspense>
       </BrowserRouter>
     </AuthProvider>
   );

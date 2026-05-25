@@ -19,23 +19,40 @@ export class SmsProcessor {
     // Try Regex First
     const regexResult = this.regexEngine.parse(rawSanitized, senderTitle);
     
+    let resolvedResult: ParsedTransaction | null = null;
+    let method = '';
+
     if (regexResult && regexResult.confidence >= 0.85) {
-      adminService.logEvent('SMS_PARSED_SUCCESS', { method: 'regex' });
-      return regexResult;
+      resolvedResult = regexResult;
+      method = 'regex';
+    } else {
+      // AI Fallback if Regex failed or confidence < 0.85
+      const fallbackResult = await this.geminiParser.parse(rawSanitized, senderTitle);
+      if (fallbackResult) {
+        resolvedResult = fallbackResult;
+        method = 'ai';
+      } else if (regexResult && regexResult.confidence >= 0.6) {
+        resolvedResult = regexResult;
+        method = 'regex_low_conf';
+      }
     }
 
-    // AI Fallback if Regex failed or confidence < 0.85
-    const fallbackResult = await this.geminiParser.parse(rawSanitized, senderTitle);
-    
-    if (fallbackResult) {
-      adminService.logEvent('SMS_PARSED_SUCCESS', { method: 'ai' });
-      return fallbackResult;
-    }
-
-    // If AI failed as well, but we had a mediocre regex reading, fallback to the mediocre one.
-    if (regexResult && regexResult.confidence >= 0.6) {
-      adminService.logEvent('SMS_PARSED_SUCCESS', { method: 'regex_low_conf' });
-      return regexResult;
+    if (resolvedResult) {
+      // Lookup merchant memory map
+      if (resolvedResult.merchantName) {
+        try {
+          const { merchantMemoryService } = await import('../../lib/merchantMemory');
+          const learned = await merchantMemoryService.recallMerchant(resolvedResult.merchantName);
+          if (learned) {
+            resolvedResult.categoryId = learned.category;
+            (resolvedResult as any).isLearned = true;
+          }
+        } catch (e) {
+          console.warn("[Merchant Memory recall in SmsProcessor failed]", e);
+        }
+      }
+      adminService.logEvent('SMS_PARSED_SUCCESS', { method });
+      return resolvedResult;
     }
 
     adminService.logEvent('SMS_PARSED_FAILED');

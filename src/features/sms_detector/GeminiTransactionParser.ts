@@ -1,6 +1,7 @@
 import { ParsedTransaction } from './RegexParserEngine';
 import { TransactionType } from '../../db/models';
 import { adminService } from '../admin/AdminService';
+import { auth } from '../../firebase';
 
 export class GeminiTransactionParser {
   private async handleResponse(response: Response, errorMessage: string) {
@@ -40,12 +41,13 @@ export class GeminiTransactionParser {
     adminService.logEvent('AI_FALLBACK_USED');
 
     try {
-      const response = await fetch('/api/ai/parse-transaction', {
+      const response = await fetch('/api/gemini/parse-transaction', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           text: sanitizedSms, 
-          context: `Sender: ${senderInfo}` 
+          context: `Sender: ${senderInfo}`,
+          userId: auth.currentUser?.uid
         })
       });
       
@@ -76,3 +78,4 @@ export class GeminiTransactionParser {
     }
   }
 }
+

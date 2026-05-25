@@ -43,10 +43,14 @@ export class VoiceExpenseParser {
 
   public async parseVoiceInput(transcription: string): Promise<VoiceParsedTransaction | null> {
     try {
-      const response = await fetch('/api/ai/parse-transaction', {
+      const { auth } = await import('../../firebase');
+      const response = await fetch('/api/gemini/parse-transaction', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: transcription })
+        body: JSON.stringify({ 
+          text: transcription,
+          userId: auth.currentUser?.uid
+        })
       });
       
       const data = await this.handleResponse(response, "Gemini Parsing Error");

@@ -93,14 +93,18 @@ Global Budget Limit: ₹${budgetLimit}
     hapticFeedback.light();
 
     const fullMessage = `${userMessage || 'Analyze these uploaded bills.'}\n\n${financialContext}`;
+    
+    // Lazy import auth to avoid top-level issues if needed, or import at the top
+    const { auth } = await import('../../firebase');
 
     try {
-      const response = await fetch('/api/ai/assistant', {
+      const response = await fetch('/api/gemini/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           message: fullMessage,
-          files: filesToSend.map(f => ({ base64: f.base64, mimeType: f.mimeType }))
+          files: filesToSend.map(f => ({ base64: f.base64, mimeType: f.mimeType })),
+          userId: auth.currentUser?.uid
         })
       });
       const data = await response.json();

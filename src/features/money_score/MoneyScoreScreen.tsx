@@ -71,6 +71,9 @@ export default function MoneyScoreScreen() {
       }),
     []
   ) || [];
+
+  const budgets = useLiveQuery(() => db.budgets.toArray()) || [];
+  const categories = useLiveQuery(() => db.categories.toArray()) || [];
   
   const { user } = useAuth();
   const [firebaseTotals, setFirebaseTotals] = useState<{ creditedMoney: number; debitedMoney: number; expenses: number } | null>(null);
@@ -122,16 +125,26 @@ export default function MoneyScoreScreen() {
   }, [user]);
 
   const { scoreResult, historyData, badges } = useMemo(() => {
-    const credited = firebaseTotals ? firebaseTotals.creditedMoney : 0;
-    const debited = firebaseTotals ? firebaseTotals.debitedMoney : 0;
-    const exp = firebaseTotals ? firebaseTotals.expenses : 0;
-
     if (allTxs.length === 0) {
       return { 
-        scoreResult: scoreCalculator.calculateScoreFromFirebase(0, 0, 0, []),
+        scoreResult: scoreCalculator.calculate8FactorScore([], [], [], 0, 0, []),
         historyData: [],
         badges: []
       };
+    }
+
+    const initialBalance = Number(localStorage.getItem('initial_balance') || 0);
+
+    // Calculate logging streak count (consecutive active days)
+    const activeDates = new Set(allTxs.map(t => new Date(t.dateTime).toDateString()));
+    let streakCount = 0;
+    for (let i = 0; i < 30; i++) {
+      const checkDateStr = new Date(Date.now() - i * 24 * 60 * 60 * 1000).toDateString();
+      if (activeDates.has(checkDateStr)) {
+        streakCount++;
+      } else {
+        break;
+      }
     }
 
     const months = Array.from({length: 6}).map((_, i) => subMonths(currentDate, 5 - i));
@@ -146,24 +159,15 @@ export default function MoneyScoreScreen() {
       txsByMonth[mKey].push(t);
     });
 
-    let currentScore = scoreCalculator.calculateScoreFromFirebase(0, 0, 0, []);
+    let currentScore = scoreCalculator.calculate8FactorScore(allTxs, budgets, categories, initialBalance, streakCount, []);
 
     for (const m of months) {
       const mKey = format(m, 'yyyy-MM');
-      const monthTx = txsByMonth[mKey] || [];
+      // For history trend, analyze cumulative transactions up to that month
+      const maxTime = new Date(m.getFullYear(), m.getMonth() + 1, 0).getTime();
+      const historicalTxs = allTxs.filter(t => t.dateTime <= maxTime);
       
-      let tSpent = 0;
-      let inc = 0;
-
-      monthTx.forEach(t => {
-        if (t.type === TransactionType.DEBIT) {
-          tSpent += t.amount;
-        } else {
-          inc += t.amount;
-        }
-      });
-      
-      const res = scoreCalculator.calculateScoreFromFirebase(inc, tSpent, tSpent, scores);
+      const res = scoreCalculator.calculate8FactorScore(historicalTxs, budgets, categories, initialBalance, streakCount, scores);
       scores.push(res.total);
       hData.push({ month: format(m, 'MMM'), score: res.total });
       
@@ -173,16 +177,16 @@ export default function MoneyScoreScreen() {
     }
 
     const bgs = [
-      { id: 'saver', title: 'Savings Champion', locked: currentScore.breakdown.savingsRate < 30 },
-      { id: 'budget', title: 'Budget Master', locked: true },
-      { id: 'streak', title: 'Streak Legend', locked: currentScore.breakdown.monthlyStreak < 5 },
-      { id: 'debtfree', title: 'Debt Free', locked: false },
-      { id: '10k', title: '₹10k Saver', locked: true },
+      { id: 'saver', title: 'Savings Champion', locked: (currentScore.breakdown.savingsRate || 0) < 15 },
+      { id: 'budget', title: 'Budget Master', locked: (currentScore.breakdown.budgetAdherence || 0) < 10 },
+      { id: 'streak', title: 'Streak Legend', locked: streakCount < 7 },
+      { id: 'debtfree', title: 'Debt Free', locked: (currentScore.breakdown.emergencyBuffer || 0) < 10 },
+      { id: '10k', title: '₹10k Saver', locked: initialBalance < 10000 },
       { id: 'smart', title: 'Smart Spender', locked: currentScore.total < 80 }
     ];
 
     return { scoreResult: currentScore, historyData: hData, badges: bgs };
-  }, [allTxs, currentDate, firebaseTotals]);
+  }, [allTxs, budgets, categories, currentDate, firebaseTotals]);
 
   // Initial scanning delay for "premium factor"
   useEffect(() => {
@@ -505,11 +509,14 @@ export default function MoneyScoreScreen() {
                </div>
                <div className="grid grid-cols-1 gap-4">
                   {[
-                    { label: 'Savings Matrix', val: scoreResult.breakdown.savingsRate, max: 30, icon: Target },
-                    { label: 'Budget Adherence', val: scoreResult.breakdown.budgetAdherence, max: 25, icon: Wallet },
-                    { label: 'Flow Consistency', val: scoreResult.breakdown.spendingConsistency, max: 15, icon: Activity },
-                    { label: 'Income Ratio', val: scoreResult.breakdown.incomeExpenseRatio, max: 15, icon: TrendingUp },
-                    { label: 'Category Spread', val: scoreResult.breakdown.categoryDiversity, max: 10, icon: BarChart2 },
+                    { label: 'Savings Matrix', val: scoreResult.breakdown.savingsRate || 0, max: 25, icon: Target },
+                    { label: 'Budget Adherence', val: scoreResult.breakdown.budgetAdherence || 0, max: 15, icon: Wallet },
+                    { label: 'Emergency Fund Buffer', val: scoreResult.breakdown.emergencyBuffer || 0, max: 15, icon: Shield },
+                    { label: 'Income Ratio Stability', val: scoreResult.breakdown.incomeExpenseRatio || 0, max: 10, icon: TrendingUp },
+                    { label: 'Investment Rate', val: scoreResult.breakdown.investmentRate || 0, max: 10, icon: Sparkles },
+                    { label: 'Flow Consistency', val: scoreResult.breakdown.spendingConsistency || 0, max: 10, icon: Activity },
+                    { label: 'Category Spread', val: scoreResult.breakdown.categoryDiversity || 0, max: 10, icon: BarChart2 },
+                    { label: 'App Logging Streak', val: scoreResult.breakdown.financialStreak || 0, max: 5, icon: Zap },
                   ].map((item, idx) => (
                     <motion.div 
                       key={idx}

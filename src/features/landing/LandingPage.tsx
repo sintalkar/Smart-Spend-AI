@@ -595,9 +595,11 @@ export default function LandingPage() {
               <span className="font-bold text-white tracking-tight">SmartSpend AI</span>
             </div>
             
-            <p className="text-xs text-gray-500 font-mono">
-              © {new Date().getFullYear()} SmartSpend AI. Under Apache-2.0 License.
-            </p>
+            <div className="flex flex-col sm:flex-row items-center gap-4 text-xs text-gray-500 font-mono">
+              <a href="/privacy" className="hover:text-white transition-colors underline">Privacy Policy (DPDPA 2023)</a>
+              <span>•</span>
+              <span>© {new Date().getFullYear()} SmartSpend AI. Under Apache-2.0 License.</span>
+            </div>
           </div>
         </div>
       </footer>

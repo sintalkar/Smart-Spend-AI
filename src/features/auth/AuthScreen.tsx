@@ -190,13 +190,19 @@ export default function AuthScreen() {
             </button>
           </form>
 
-          <div className="text-center pt-2">
+          <div className="text-center pt-4 border-t border-white/5 mt-4">
             <button 
               onClick={() => setIsSignUp(!isSignUp)}
-              className="text-gray-400 text-sm hover:text-white transition-colors"
+              className="text-gray-400 text-xs hover:text-white transition-colors block mx-auto mb-2 cursor-pointer"
             >
               {isSignUp ? "Already have an account? Sign In" : "Don't have an account? Sign Up"}
             </button>
+            <a 
+              href="/privacy" 
+              className="text-[10px] text-gray-500 hover:text-gray-300 underline transition-colors"
+            >
+              Privacy Policy (DPDPA 2023 Compliant)
+            </a>
           </div>
         </motion.div>
       </div>

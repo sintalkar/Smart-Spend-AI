@@ -15,6 +15,12 @@ import { insightsService } from '../insights/GeminiInsightsService';
 import { scoreCalculator } from '../money_score/MoneyScoreCalculator';
 import { EmptyState } from '../../core/ui/EmptyState';
 
+import { BillsManager, Bill } from '../../lib/billsManager';
+import { AnomalyDetector } from '../../lib/anomalyDetector';
+import { BurnRatePredictor, BurnRateProjection } from '../../lib/burnRatePredictor';
+import { AmountDisplay } from '../../core/ui/components/AmountDisplay';
+import { GlassCard } from '../../core/ui/components/GlassCard';
+
 const categoryIcons: Record<string, any> = {
   'shopping': ShoppingBag,
   'food_dining': Coffee,
@@ -73,6 +79,42 @@ export default function DashboardScreen() {
   const [smartGreeting, setSmartGreeting] = useState<string | null>(null);
   const [isResetting, setIsResetting] = useState(false);
   const [isBudgetAlertOpen, setIsBudgetAlertOpen] = useState(false);
+
+  const [upcomingBills, setUpcomingBills] = useState<Bill[]>([]);
+  const [anomalies, setAnomalies] = useState<any[]>([]);
+  const [burnRateProjection, setBurnRateProjection] = useState<BurnRateProjection | null>(null);
+
+  useEffect(() => {
+    // Check and process due recurring transactions on launch
+    import('../../lib/recurringManager').then(({ RecurringManager }) => {
+      RecurringManager.checkAndProcessDueRecurring().catch(console.warn);
+    });
+
+    const loadPremiumDashboardFeatures = async () => {
+      try {
+        const allBills = await BillsManager.getAllBills();
+        const today = new Date().getDate();
+        // filter bills due in next 7 days
+        const dueSoon = allBills.filter(b => b.isPaid === 0 && (b.dueDay >= today && b.dueDay <= today + 7));
+        setUpcomingBills(dueSoon);
+
+        const activeAnom = await AnomalyDetector.getUnacknowledgedAnomalies();
+        setAnomalies(activeAnom);
+
+        const proj = await BurnRatePredictor.calculateProjection();
+        setBurnRateProjection(proj);
+      } catch (e) {
+        console.warn("Failed to load dashboard premium items:", e);
+      }
+    };
+
+    loadPremiumDashboardFeatures();
+    
+    // Check and trigger weekly sunday push digest
+    import('../../lib/weeklyDigestManager').then(({ WeeklyDigestManager }) => {
+      WeeklyDigestManager.triggerSundayPushNotification().catch(console.warn);
+    });
+  }, [transactions]);
   
   const budgets = useLiveQuery(() => db.budgets.toArray()) || [];
   const globalBudget = budgets.find(b => b.categoryId === 'global');
@@ -293,7 +335,7 @@ export default function DashboardScreen() {
           const dayOfMonth = new Date().getDate();
           const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
           
-          const response = await fetch('/api/ai/budget-alert', {
+          const response = await fetch('/api/gemini/budget-alert', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
@@ -304,7 +346,8 @@ export default function DashboardScreen() {
                 catch (e) { return false; }
               }),
               daysInMonth,
-              dayOfMonth
+              dayOfMonth,
+              userId: user?.uid
             })
           });
           if (response.ok) {
@@ -563,7 +606,7 @@ export default function DashboardScreen() {
                     />
                   </div>
 
-                  <div className="flex justify-between items-center text-xs">
+                  <div className="flex justify-between items-center text-xs mb-2">
                     <div className="flex items-center gap-1.5">
                       <span className="text-[10px] text-white/40 font-bold uppercase tracking-wider">Total Debited</span>
                       <span className="text-xs text-white font-mono font-black">₹{monthlySpent.total.toLocaleString()}</span>
@@ -572,6 +615,15 @@ export default function DashboardScreen() {
                       {budgetProgress.toFixed(0)}% used
                     </span>
                   </div>
+
+                  {burnRateProjection && (
+                    <div className="flex justify-between items-center text-xs border-t border-white/5 pt-2 mt-2">
+                      <span className="text-[10px] text-white/40 font-bold uppercase tracking-wider">Projected Burn Spend</span>
+                      <span className={`text-xs font-mono font-black ${burnRateProjection.isOverBudget ? 'text-error' : 'text-[#2ED573]'}`}>
+                        ₹{burnRateProjection.projectedSpend.toLocaleString()} ({burnRateProjection.percentOfBudget.toFixed(0)}%)
+                      </span>
+                    </div>
+                  )}
                 </>
               )}
             </div>
@@ -612,6 +664,87 @@ export default function DashboardScreen() {
            </div>
         </div>
       </motion.section>
+
+      {/* 4.5 Active Protocol Alerts (Anomalies & Bills) */}
+      <AnimatePresence>
+        {(upcomingBills.length > 0 || anomalies.length > 0) && (
+          <motion.section 
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="mb-8 space-y-4 overflow-hidden"
+          >
+            <div className="flex items-center gap-2">
+              <h3 className="text-lg font-extrabold text-white tracking-tight">Active Protocol Alerts</h3>
+              <span className="px-2 py-0.5 bg-[#FF4757]/15 rounded-full text-[9px] text-[#FF4757] font-bold uppercase tracking-widest animate-pulse">Action Required</span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Anomalies */}
+              {anomalies.map((anom) => (
+                <GlassCard 
+                  key={anom.id}
+                  glowColor="error"
+                  className="p-5 flex flex-col justify-between animate-pulse-glow"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-error/15 border border-error/25 flex items-center justify-center text-error shrink-0">
+                      <AlertCircle size={20} />
+                    </div>
+                    <div>
+                      <span className="text-[9px] text-error font-extrabold uppercase tracking-widest block mb-1">Spike Anomaly Flagged</span>
+                      <h4 className="text-sm font-bold text-white mb-1 leading-tight">{anom.merchantName}</h4>
+                      <p className="text-[11px] text-gray-400 leading-normal">
+                        Charged ₹{anom.amount.toLocaleString()}, which is 2.5x+ higher than your category average of ₹{anom.averageSpend.toLocaleString()}!
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      await AnomalyDetector.acknowledgeAnomaly(anom.id);
+                      setAnomalies(prev => prev.filter(a => a.id !== anom.id));
+                    }}
+                    className="mt-4 px-4 py-2 bg-error/10 hover:bg-error/20 text-error text-[10px] font-black uppercase tracking-widest rounded-xl transition-colors w-fit border border-error/10 cursor-pointer"
+                  >
+                    Dismiss Alert
+                  </button>
+                </GlassCard>
+              ))}
+
+              {/* Upcoming Bills */}
+              {upcomingBills.map((bill) => (
+                <GlassCard 
+                  key={bill.id}
+                  glowColor="indigo"
+                  className="p-5 flex flex-col justify-between"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-[#7C5CFC]/15 border border-[#7C5CFC]/25 flex items-center justify-center text-[#7C5CFC] shrink-0">
+                      <Target size={20} />
+                    </div>
+                    <div>
+                      <span className="text-[9px] text-[#7C5CFC] font-extrabold uppercase tracking-widest block mb-1">Upcoming EMI/Bill</span>
+                      <h4 className="text-sm font-bold text-white mb-1 leading-tight">{bill.name}</h4>
+                      <p className="text-[11px] text-gray-400 leading-normal">
+                        Due amount of ₹{bill.amount.toLocaleString()} is coming up on day {bill.dueDay} of this month.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      await BillsManager.markAsPaid(bill.id);
+                      setUpcomingBills(prev => prev.filter(b => b.id !== bill.id));
+                    }}
+                    className="mt-4 px-4 py-2 bg-[#7C5CFC]/10 hover:bg-[#7C5CFC]/20 text-[#7C5CFC] text-[10px] font-black uppercase tracking-widest rounded-xl transition-colors w-fit border border-[#7C5CFC]/10 cursor-pointer"
+                  >
+                    Mark Paid
+                  </button>
+                </GlassCard>
+              ))}
+            </div>
+          </motion.section>
+        )}
+      </AnimatePresence>
 
       {/* 5. Category Budgets Envelope Progress */}
       <div className="mb-8">

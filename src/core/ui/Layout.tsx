@@ -5,7 +5,6 @@ import { motion, AnimatePresence } from 'motion/react';
 import clsx from 'clsx';
 import { VoiceEntryBottomSheet } from '../../features/add_expense/VoiceEntryBottomSheet';
 import ReceiptScannerScreen from '../../features/receipt_scanner/ReceiptScannerScreen';
-import { adminService, AdminFeatureToggles } from '../../features/admin/AdminService';
 import { PwaInstallPrompt } from '../../features/pwa/PwaInstallPrompt';
 import { db as firestoreDb } from '../../firebase';
 import { doc, setDoc } from 'firebase/firestore';
@@ -17,7 +16,6 @@ export function Layout() {
   const [isFabOpen, setIsFabOpen] = useState(false);
   const [isVoiceSheetOpen, setIsVoiceSheetOpen] = useState(false);
   const [isReceiptScannerOpen, setIsReceiptScannerOpen] = useState(false);
-  const [toggles, setToggles] = useState<AdminFeatureToggles>(adminService.getToggles());
   const openedOnce = useRef(false);
 
   const { user } = useAuth();
@@ -78,18 +76,7 @@ export function Layout() {
     }
   };
 
-  useEffect(() => {
-    if (!openedOnce.current) {
-      adminService.logEvent('APP_OPEN');
-      openedOnce.current = true;
-    }
-  }, []);
 
-  useEffect(() => {
-    return adminService.subscribe(() => {
-      setToggles(adminService.getToggles());
-    });
-  }, []);
 
   const navItems = [
     { path: '/', icon: Home, label: 'Home' },
@@ -100,9 +87,9 @@ export function Layout() {
   ];
 
   const fabOptions = [
-    { icon: Edit3, label: 'Manual Entry', color: 'bg-primary', onClick: () => { adminService.logEvent('MANUAL_ENTRY'); window.location.href='/add'; }, enabled: true },
-    { icon: Mic, label: 'Voice', color: 'bg-secondary', onClick: () => { adminService.logEvent('VOICE_ENTRY_USED'); setIsVoiceSheetOpen(true); }, enabled: toggles.voiceEntry },
-    { icon: Camera, label: 'Receipt', color: 'bg-blue-500', onClick: () => { adminService.logEvent('RECEIPT_SCANNED'); setIsReceiptScannerOpen(true); }, enabled: toggles.receiptScanner },
+    { icon: Edit3, label: 'Manual Entry', color: 'bg-primary', onClick: () => { window.location.href='/add'; }, enabled: true },
+    { icon: Mic, label: 'Voice', color: 'bg-secondary', onClick: () => { setIsVoiceSheetOpen(true); }, enabled: true },
+    { icon: Camera, label: 'Receipt', color: 'bg-blue-500', onClick: () => { setIsReceiptScannerOpen(true); }, enabled: true },
   ];
 
   // Close FAB when navigating

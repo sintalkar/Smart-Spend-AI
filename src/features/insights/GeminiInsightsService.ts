@@ -1,4 +1,5 @@
 import { adminService } from '../admin/AdminService';
+import { auth } from '../../firebase';
 
 export interface OverspendingCategory {
   category: string;
@@ -75,7 +76,7 @@ export class GeminiInsightsService {
     adminService.logEvent('INSIGHT_GENERATED');
 
     try {
-      const response = await fetch('/api/ai/insights', {
+      const response = await fetch('/api/gemini/insights', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -85,7 +86,8 @@ export class GeminiInsightsService {
           categoryBreakdown,
           previousPeriodBreakdown,
           totalBudget,
-          categoryBudgets
+          categoryBudgets,
+          userId: auth.currentUser?.uid
         })
       });
 
@@ -117,10 +119,16 @@ export class GeminiInsightsService {
     const timeoutId = setTimeout(() => controller.abort(), 12000); // 12s timeout
 
     try {
-      const response = await fetch('/api/ai/greet', {
+      const response = await fetch('/api/gemini/greet', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userName, totalBalance, monthlySpent, budgetLimit }),
+        body: JSON.stringify({ 
+          userName, 
+          totalBalance, 
+          monthlySpent, 
+          budgetLimit,
+          userId: auth.currentUser?.uid
+        }),
         signal: controller.signal
       });
       
@@ -153,10 +161,13 @@ export class GeminiInsightsService {
 
   public async parseTransaction(text: string): Promise<any | null> {
     try {
-      const response = await fetch('/api/ai/parse-transaction', {
+      const response = await fetch('/api/gemini/parse-transaction', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text })
+        body: JSON.stringify({ 
+          text,
+          userId: auth.currentUser?.uid
+        })
       });
       
       return await this.handleResponse(response, "Parse Transaction API Error");
@@ -171,10 +182,14 @@ export class GeminiInsightsService {
 
   public async scanReceipt(imageData: string, mimeType: string): Promise<any> {
     try {
-      const response = await fetch('/api/ai/scan-receipt', {
+      const response = await fetch('/api/gemini/parse-receipt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image: imageData, mimeType })
+        body: JSON.stringify({ 
+          image: imageData, 
+          mimeType,
+          userId: auth.currentUser?.uid
+        })
       });
       
       return await this.handleResponse(response, "Scan Receipt API Error");
@@ -196,3 +211,4 @@ export class GeminiInsightsService {
 }
 
 export const insightsService = new GeminiInsightsService();
+

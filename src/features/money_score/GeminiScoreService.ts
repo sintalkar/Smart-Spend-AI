@@ -1,4 +1,5 @@
 import { ScoreBreakdown } from './MoneyScoreCalculator';
+import { auth } from '../../firebase';
 
 export interface ScoreImprovementTip {
   tip: string;
@@ -53,10 +54,14 @@ export class GeminiScoreService {
     }
 
     try {
-      const response = await fetch(`${window.location.origin}/api/ai/score-tips`, {
+      const response = await fetch(`${window.location.origin}/api/gemini/score-tips`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ score, breakdown })
+        body: JSON.stringify({ 
+          score, 
+          breakdown,
+          userId: auth.currentUser?.uid
+        })
       });
       
       const data = await this.handleResponse(response, "Gemini Score Service Error");
@@ -72,7 +77,7 @@ export class GeminiScoreService {
         throw new Error("To receive AI-powered financial tips, please add your Gemini API key in Settings > Secrets.");
       }
       if (error.message.includes("Failed to fetch")) {
-        throw new Error(`Network error: Failed to connect to the server (URL: ${window.location.origin}/api/ai/score-tips). Please ensure the backend is running and the API key is configured in Settings > Secrets. Original error: ${error.message}`);
+        throw new Error(`Network error: Failed to connect to the server (URL: ${window.location.origin}/api/gemini/score-tips). Please ensure the backend is running and the API key is configured in Settings > Secrets. Original error: ${error.message}`);
       }
       throw error;
     }
@@ -80,3 +85,4 @@ export class GeminiScoreService {
 }
 
 export const scoreService = new GeminiScoreService();
+
