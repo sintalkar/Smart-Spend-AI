@@ -18,8 +18,10 @@ const OnboardingScreen = lazy(() => import('./features/onboarding/OnboardingScre
 const SetBudgetScreen = lazy(() => import('./features/budget/SetBudgetScreen'));
 const InstallGuideScreen = lazy(() => import('./features/pwa/InstallGuideScreen').then(module => ({ default: module.InstallGuideScreen })));
 const LandingPage = lazy(() => import('./features/landing/LandingPage'));
+const RecurringScreen = lazy(() => import('./features/recurring/RecurringScreen'));
+const GoalsScreen = lazy(() => import('./features/goals/GoalsScreen'));
+const GoalDetailScreen = lazy(() => import('./features/goals/GoalDetailScreen'));
 
-// Import Privacy Policy dynamically later
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
 
 import { AuthProvider } from './core/auth/AuthProvider';
@@ -57,7 +59,7 @@ export default function App() {
 
   useEffect(() => {
     const updateActivity = () => localStorage.setItem('LAST_ACTIVITY', Date.now().toString());
-    
+
     // Set initial activity
     updateActivity();
 
@@ -111,8 +113,8 @@ export default function App() {
 
   return (
     <AuthProvider>
-      <Toaster 
-        position="top-center" 
+      <Toaster
+        position="top-center"
         reverseOrder={false}
         toastOptions={{
           style: {
@@ -126,7 +128,7 @@ export default function App() {
             padding: '12px 24px',
             boxShadow: '0 20px 40px rgba(0,0,0,0.5)'
           }
-        }} 
+        }}
       />
       <BrowserRouter>
         <Suspense fallback={<ScreenSkeleton />}>
@@ -139,6 +141,9 @@ export default function App() {
               <Route path="insights" element={<InsightsScreen />} />
               <Route path="score" element={<MoneyScoreScreen />} />
               <Route path="budget" element={<SetBudgetScreen />} />
+              <Route path="recurring" element={<RecurringScreen />} />
+              <Route path="goals" element={<GoalsScreen />} />
+              <Route path="goals/:id" element={<GoalDetailScreen />} />
               <Route path="install-guide" element={<InstallGuideScreen />} />
               <Route path="privacy" element={<PrivacyPolicy />} />
             </Route>
