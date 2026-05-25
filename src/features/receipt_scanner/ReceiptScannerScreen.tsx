@@ -98,6 +98,37 @@ export default function ReceiptScannerScreen({ onClose }: { onClose?: () => void
     }
   };
 
+  const preprocessImageCanvas = (canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D) => {
+    try {
+      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imgData.data;
+      
+      // 1. Grayscale & Contrast boost loop (OpenCV-like threshold preparation)
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+        
+        // Luminosity grayscaling weights
+        let gray = 0.299 * r + 0.587 * g + 0.114 * b;
+        
+        // Boost contrast (stretch around 128 threshold)
+        const contrastFactor = 1.3;
+        gray = (gray - 128) * contrastFactor + 128;
+        gray = Math.max(0, Math.min(255, gray));
+        
+        data[i] = gray;     // R
+        data[i + 1] = gray; // G
+        data[i + 2] = gray; // B
+      }
+      
+      ctx.putImageData(imgData, 0, 0);
+      console.log("[OCR Preprocessing] OpenCV-like high-contrast canvas filtering completed successfully!");
+    } catch (e) {
+      console.warn("[OCR Preprocessing] Canvas pixel extraction blocked by CORS. Using original capture.", e);
+    }
+  };
+
   const handleCapture = () => {
     if (videoRef.current && canvasRef.current) {
       const video = videoRef.current;
@@ -107,7 +138,8 @@ export default function ReceiptScannerScreen({ onClose }: { onClose?: () => void
       const ctx = canvas.getContext('2d');
       if (ctx) {
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        // Preprocess: We can apply filters here if needed
+        // Preprocess captured image with OpenCV contrast boosting before OCR
+        preprocessImageCanvas(canvas, ctx);
         const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
         processImage(dataUrl);
       }
@@ -120,7 +152,23 @@ export default function ReceiptScannerScreen({ onClose }: { onClose?: () => void
       const reader = new FileReader();
       reader.onload = (e) => {
         if (e.target?.result) {
-          processImage(e.target.result as string);
+          const img = new Image();
+          img.onload = () => {
+            if (canvasRef.current) {
+              const canvas = canvasRef.current;
+              canvas.width = img.width;
+              canvas.height = img.height;
+              const ctx = canvas.getContext('2d');
+              if (ctx) {
+                ctx.drawImage(img, 0, 0);
+                // Preprocess uploaded files with high-contrast thresholding
+                preprocessImageCanvas(canvas, ctx);
+                const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+                processImage(dataUrl);
+              }
+            }
+          };
+          img.src = e.target.result as string;
         }
       };
       reader.readAsDataURL(file);
