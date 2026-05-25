@@ -110,7 +110,7 @@ export default function LandingPage() {
           {/* Tag */}
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary/10 border border-primary/20 rounded-full text-xs font-bold tracking-wider text-primary uppercase mb-2 animate-bounce">
             <Sparkles size={14} className="animate-spin" />
-            <span>Introducing Gemini-Powered CA Assistant</span>
+            <span>Introducing Gemini-Powered AI Assistant</span>
           </div>
 
           {/* Title */}
@@ -224,7 +224,7 @@ export default function LandingPage() {
                     <Bot size={16} />
                   </div>
                   <div>
-                    <h5 className="text-xs font-bold text-white">Personal CA Assistant</h5>
+                    <h5 className="text-xs font-bold text-white">Personal AI Assistant</h5>
                     <span className="text-[8px] text-primary uppercase tracking-widest font-black">Proactive Tip</span>
                   </div>
                 </div>
@@ -549,7 +549,7 @@ export default function LandingPage() {
               
               <div className="border-t border-primary/10 pt-6 space-y-3 text-xs text-gray-300">
                 <div className="flex items-center gap-2"><Check size={14} className="text-primary" /> <span className="font-semibold text-white">Infinite OCR Receipt Scanners</span></div>
-                <div className="flex items-center gap-2"><Check size={14} className="text-primary" /> <span className="font-semibold text-white">Proactive AI CA Chat Assistant</span></div>
+                <div className="flex items-center gap-2"><Check size={14} className="text-primary" /> <span className="font-semibold text-white">Proactive AI Chat Assistant</span></div>
                 <div className="flex items-center gap-2"><Check size={14} className="text-primary" /> <span className="font-semibold text-white">Voice Entry & speech recognizer</span></div>
                 <div className="flex items-center gap-2"><Check size={14} className="text-primary" /> <span className="font-semibold text-white">Android Background SMS Autodetect</span></div>
               </div>
