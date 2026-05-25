@@ -1,8 +1,9 @@
 import Dexie, { type EntityTable } from 'dexie';
 import { v4 as uuidv4 } from 'uuid';
 import {
-  TransactionEntity, CategoryEntity, BudgetEntity, SmsPatternEntity, 
-  InsightsCacheEntity, MoneyScoreHistoryEntity, AdminEventEntity, CategoryType
+  TransactionEntity, CategoryEntity, BudgetEntity, SmsPatternEntity,
+  InsightsCacheEntity, MoneyScoreHistoryEntity, AdminEventEntity, CategoryType,
+  GoalEntity, GoalContributionEntity
 } from './models';
 
 // This is the IndexedDB equivalent of Room Database & Migrations. It operates offline-first.
@@ -17,7 +18,8 @@ export class SmartSpendDatabase extends Dexie {
   budgetHistory!: EntityTable<{id: string, budgetId?: string, categoryId: string, amount?: number, oldAmount?: number, newAmount?: number, reason?: string, changedAt: number}, 'id'>;
   merchantMap!: Dexie.Table<{ merchant: string, category: string, icon: string, count: number }, string>;
   bills!: Dexie.Table<{ id: string, name: string, amount: number, dueDay: number, category: string, isRecurring: number, notifyDaysBefore: number, isPaid: number }, string>;
-  goals!: Dexie.Table<{ id: string, name: string, targetAmount: number, savedAmount: number, targetDate: number, icon: string, color: string }, string>;
+  goals!: EntityTable<GoalEntity, 'id'>;
+  goalContributions!: EntityTable<GoalContributionEntity, 'id'>;
   recurringTransactions!: Dexie.Table<{ id: string, amount: number, type: 'DEBIT' | 'CREDIT', categoryId: string, merchantName: string, frequency: string, lastRunDate: number, nextRunDate: number, isPaused: number }, string>;
   anomalies!: Dexie.Table<{ id: string, transactionId: string, categoryId: string, amount: number, averageSpend: number, detectedAt: number, acknowledged: number }, string>;
   netWorth!: Dexie.Table<{ id: string, type: 'asset' | 'liability', name: string, subType: string, value: number, lastUpdated: number }, string>;
@@ -39,7 +41,8 @@ export class SmartSpendDatabase extends Dexie {
       budgetHistory: 'id, categoryId, changedAt',
       merchantMap: 'merchant, category',
       bills: 'id, dueDay, isRecurring',
-      goals: 'id, targetDate',
+      goals: 'id, isCompleted, createdAt',
+      goalContributions: 'id, goalId, createdAt',
       recurringTransactions: 'id, frequency, nextRunDate',
       anomalies: 'id, transactionId, detectedAt',
       netWorth: 'id, type',
@@ -62,6 +65,7 @@ export class SmartSpendDatabase extends Dexie {
     await this.merchantMap.clear();
     await this.bills.clear();
     await this.goals.clear();
+    await this.goalContributions.clear();
     await this.recurringTransactions.clear();
     await this.anomalies.clear();
     await this.netWorth.clear();

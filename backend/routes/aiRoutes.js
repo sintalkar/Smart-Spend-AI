@@ -1,11 +1,12 @@
 import express from 'express';
-import { 
-  analyzeSpending, 
+import {
+  analyzeSpending,
   getLastInsight,
   categorizeTransaction,
   scanReceipt,
   chatWithCA,
-  getFinancialScoreTips
+  getFinancialScoreTips,
+  getGoalTipsController
 } from '../controllers/aiController.js';
 import { protect } from '../middleware/authMiddleware.js';
 
@@ -17,5 +18,6 @@ router.post('/categorize', protect, categorizeTransaction);
 router.post('/scan-receipt', protect, scanReceipt);
 router.post('/assistant', protect, chatWithCA);
 router.post('/score-tips', protect, getFinancialScoreTips);
+router.post('/goal-tips', protect, getGoalTipsController);
 
 export default router;

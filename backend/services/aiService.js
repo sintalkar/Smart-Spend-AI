@@ -417,7 +417,66 @@ export const scanInvoiceReceipt = async (imageBuffer, mimeType) => {
   }
 };
 
-// 5. CA Direct Chatbot Assistant
+// 5. Goal Tips — suggest spending cuts to hit a savings goal faster
+export const getGoalTips = async ({ goalName, targetAmount, currentAmount, deadline, monthlyIncome, monthlyExpenses, categoryBreakdown }) => {
+  const remaining = Math.max(targetAmount - currentAmount, 0);
+  const monthlySurplus = monthlyIncome - monthlyExpenses;
+  const etaMonthsNow = monthlySurplus > 0 ? Math.ceil(remaining / monthlySurplus) : null;
+
+  const systemInstruction = `You are Smart Spend AI, a personal finance coach specialising in Indian savings goals.
+Return ONLY valid JSON. No markdown, no prose outside JSON.`;
+
+  const prompt = `A user wants to save for: "${goalName}"
+Target: ₹${targetAmount} | Saved so far: ₹${currentAmount} | Remaining: ₹${remaining}
+${deadline ? `Deadline: ${new Date(deadline).toDateString()}` : 'No fixed deadline'}
+Monthly income: ₹${monthlyIncome} | Monthly expenses: ₹${monthlyExpenses}
+Current monthly surplus: ₹${monthlySurplus >= 0 ? monthlySurplus : 0}
+Estimated months at current rate: ${etaMonthsNow !== null ? etaMonthsNow : 'N/A (no surplus)'}
+
+Category spending this month (₹):
+${JSON.stringify(categoryBreakdown, null, 2)}
+
+Return JSON in exactly this shape:
+{
+  "eta_current": "${etaMonthsNow !== null ? etaMonthsNow + ' months' : 'Not achievable at current rate'}",
+  "monthly_needed": <number — how much to save per month to hit deadline, or same as surplus if no deadline>,
+  "suggestions": [
+    {
+      "category": "<category name>",
+      "current_monthly_spend": <number>,
+      "suggested_cut_percent": <5-40>,
+      "monthly_savings": <number>,
+      "tip": "<one specific actionable tip, 1 sentence>"
+    }
+  ],
+  "eta_with_cuts": "<e.g. '4 months' — ETA if all suggestions are followed>",
+  "motivation": "<one short encouraging sentence personalised to the goal name>"
+}
+Limit to the top 3 most impactful spending cuts. Be specific and realistic.`;
+
+  try {
+    const raw = await executeAI(prompt, systemInstruction);
+    return parseJSON(raw);
+  } catch (err) {
+    console.error('[AI Engine] Goal tips failed, using fallback', err);
+    const cats = Object.entries(categoryBreakdown).sort((a, b) => b[1] - a[1]).slice(0, 3);
+    return {
+      eta_current: etaMonthsNow !== null ? `${etaMonthsNow} months` : 'Not achievable at current rate',
+      monthly_needed: remaining > 0 ? Math.ceil(remaining / 12) : 0,
+      suggestions: cats.map(([cat, spend]) => ({
+        category: cat,
+        current_monthly_spend: spend,
+        suggested_cut_percent: 20,
+        monthly_savings: Math.round(spend * 0.2),
+        tip: `Reduce your ${cat} spend by 20% to free up ₹${Math.round(spend * 0.2)} per month.`
+      })),
+      eta_with_cuts: etaMonthsNow !== null ? `~${Math.ceil(etaMonthsNow * 0.75)} months` : 'Set a budget first',
+      motivation: `You're on your way to achieving your "${goalName}" goal. Every rupee saved counts!`
+    };
+  }
+};
+
+// 6. CA Direct Chatbot Assistant
 export const chatWithCharteredAccountant = async (message, chatHistory = [], files = []) => {
   const gemini = getGeminiClient();
   if (!gemini) {
@@ -434,9 +493,18 @@ export const chatWithCharteredAccountant = async (message, chatHistory = [], fil
   - Indian tax contexts (New vs Old tax slabs, 80C, 80D, LTCG/STCG, tax saving SIPs, digital gold, emergency funds) are your second nature.`;
 
   try {
+    // Map prior turns into the format Gemini expects so the assistant retains context
+    const history = chatHistory
+      .filter(turn => turn.role && turn.text)
+      .map(turn => ({
+        role: turn.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: turn.text }]
+      }));
+
     const chat = gemini.chats.create({
       model: "gemini-2.5-flash",
-      config: { systemInstruction }
+      config: { systemInstruction },
+      history
     });
 
     const msgContents = [];
@@ -454,7 +522,6 @@ export const chatWithCharteredAccountant = async (message, chatHistory = [], fil
     }
     msgContents.push({ text: message });
 
-    // Pre-populate chat history if needed...
     const response = await chat.sendMessage({ message: msgContents });
     return { text: response.text };
   } catch (err) {

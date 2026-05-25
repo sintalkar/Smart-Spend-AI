@@ -106,6 +106,27 @@ export interface AdminEventEntity {
   createdAt: number;
 }
 
+export interface GoalEntity {
+  id: string;
+  name: string;
+  emoji: string;
+  targetAmount: number;
+  currentAmount: number;
+  color: string; // hex accent colour
+  deadline?: number; // epoch ms, optional
+  isCompleted: number; // 0 | 1
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface GoalContributionEntity {
+  id: string;
+  goalId: string;
+  amount: number;
+  note?: string;
+  createdAt: number;
+}
+
 // Queries DTO Models
 export interface DailyTotal {
   date: string; // YYYY-MM-DD

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { Home, ListOrdered, Plus, PieChart, Shield, Mic, Camera, Edit3, X, Coins, AlertCircle } from 'lucide-react';
+import { Home, ListOrdered, Plus, PieChart, Target, Mic, Camera, Edit3, X, Coins, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import clsx from 'clsx';
 import { VoiceEntryBottomSheet } from '../../features/add_expense/VoiceEntryBottomSheet';
@@ -28,16 +28,13 @@ export function Layout() {
   });
 
   useEffect(() => {
-    const handleStorageChange = () => {
-      const stored = localStorage.getItem('initial_balance');
-      setInitialBalance(stored ? Number(stored) : null);
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'initial_balance') {
+        setInitialBalance(e.newValue ? Number(e.newValue) : null);
+      }
     };
     window.addEventListener('storage', handleStorageChange);
-    const interval = setInterval(handleStorageChange, 1000);
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      clearInterval(interval);
-    };
+    return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
   const handleFabClick = (onClickAction: () => void) => {
@@ -83,7 +80,7 @@ export function Layout() {
     { path: '/transactions', icon: ListOrdered, label: 'History' },
     { isFab() { return true; }, path: '#', icon: Plus, label: '' },
     { path: '/insights', icon: PieChart, label: 'Insights' },
-    { path: '/score', icon: Shield, label: 'Score' },
+    { path: '/goals', icon: Target, label: 'Goals' },
   ];
 
   const fabOptions = [

@@ -1,8 +1,9 @@
-import { 
-  getAIAnalysis, 
-  parseNaturalTransaction, 
-  scanInvoiceReceipt, 
-  chatWithCharteredAccountant 
+import {
+  getAIAnalysis,
+  parseNaturalTransaction,
+  scanInvoiceReceipt,
+  chatWithCharteredAccountant,
+  getGoalTips
 } from '../services/aiService.js';
 import Insight from '../models/Insight.js';
 
@@ -153,6 +154,36 @@ export const chatWithCA = async (req, res, next) => {
       success: true,
       text: result.text
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get AI tips to hit a savings goal faster
+// @route   POST /api/ai/goal-tips
+// @access  Private
+export const getGoalTipsController = async (req, res, next) => {
+  try {
+    const {
+      goalName, targetAmount, currentAmount, deadline,
+      monthlyIncome, monthlyExpenses, categoryBreakdown
+    } = req.body;
+
+    if (!goalName || targetAmount === undefined) {
+      return res.status(400).json({ success: false, message: 'goalName and targetAmount are required', errors: [] });
+    }
+
+    const result = await getGoalTips({
+      goalName,
+      targetAmount: Number(targetAmount),
+      currentAmount: Number(currentAmount ?? 0),
+      deadline: deadline ? Number(deadline) : null,
+      monthlyIncome: Number(monthlyIncome ?? 0),
+      monthlyExpenses: Number(monthlyExpenses ?? 0),
+      categoryBreakdown: categoryBreakdown ?? {}
+    });
+
+    res.status(200).json({ success: true, data: result });
   } catch (error) {
     next(error);
   }
