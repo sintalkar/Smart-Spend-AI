@@ -67,6 +67,7 @@ export default function DashboardScreen() {
   const { user, logout } = useAuth();
   const [smartGreeting, setSmartGreeting] = useState<string | null>(null);
   const [isResetting, setIsResetting] = useState(false);
+  const [isBudgetAlertOpen, setIsBudgetAlertOpen] = useState(false);
   
   const budgets = useLiveQuery(() => db.budgets.toArray()) || [];
   const globalBudget = budgets.find(b => b.categoryId === 'global');
@@ -322,6 +323,12 @@ export default function DashboardScreen() {
   }, [projection, budgetLimit, monthlySpent.total]);
 
   useEffect(() => {
+    if (predictiveAlert || aiBudgetAlert) {
+      setIsBudgetAlertOpen(true);
+    }
+  }, [predictiveAlert, aiBudgetAlert]);
+
+  useEffect(() => {
     let timeoutId: NodeJS.Timeout;
 
     if (user && totalBalance !== undefined) {
@@ -493,38 +500,63 @@ export default function DashboardScreen() {
               <AnimatedCounter value={Math.abs(totalBalance)} />
             </div>
 
-            <div className="relative z-10 bg-black/40 backdrop-blur-md rounded-2xl p-4 border border-white/5">
-              <div className="flex justify-between items-center mb-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></div>
-                  <span className="text-[10px] text-white/60 font-bold uppercase tracking-widest">Monthly Goal</span>
+            <div className="relative z-10 bg-black/40 backdrop-blur-md rounded-2xl p-5 border border-white/5">
+              {!isBudgetSet ? (
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-error/10 border border-error/20 flex items-center justify-center text-error animate-pulse">
+                      <Target size={20} />
+                    </div>
+                    <div>
+                      <span className="text-[9px] text-white/40 font-bold uppercase tracking-widest block mb-0.5">Monthly Goal</span>
+                      <span className="text-lg font-black text-white/50 tracking-tight leading-none">
+                        Not Set
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => navigate('/budget')}
+                    className="px-4 py-2.5 bg-primary hover:bg-primary-light active:scale-95 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all cursor-pointer shadow-lg shadow-primary/20 flex items-center gap-1.5"
+                  >
+                    <Plus size={12} />
+                    <span>Set Budget</span>
+                  </button>
                 </div>
-                <span className="text-white text-xs font-mono font-bold tracking-wider">
-                  {isBudgetSet ? `₹${budgetLimit.toLocaleString()}` : "Not Set"}
-                </span>
-              </div>
-              
-              <div className="w-full bg-white/10 rounded-full h-1.5 overflow-hidden mb-3">
-                <motion.div 
-                  initial={{ width: 0 }}
-                  animate={{ width: `${budgetProgress}%` }}
-                  transition={{ duration: 1.5, ease: "circOut", delay: 0.5 }}
-                  className={`h-full rounded-full bg-gradient-to-r ${
-                    budgetProgress > 90 ? 'from-error to-error/50 shadow-[0_0_10px_rgba(244,63,94,0.5)]' : 
-                    budgetProgress > 70 ? 'from-warning to-warning/50' : 'from-primary to-primary/50 shadow-[0_0_10px_rgba(99,102,241,0.5)]'
-                  }`}
-                />
-              </div>
+              ) : (
+                <>
+                  <div className="flex justify-between items-center mb-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></div>
+                      <span className="text-[10px] text-white/60 font-bold uppercase tracking-widest">Monthly Goal</span>
+                    </div>
+                    <span className="text-white text-sm font-mono font-black tracking-wider bg-primary/20 border border-primary/30 px-2 py-0.5 rounded-md">
+                      ₹{budgetLimit.toLocaleString()}
+                    </span>
+                  </div>
+                  
+                  <div className="w-full bg-white/10 rounded-full h-1.5 overflow-hidden mb-3">
+                    <motion.div 
+                      initial={{ width: 0 }}
+                      animate={{ width: `${budgetProgress}%` }}
+                      transition={{ duration: 1.5, ease: "circOut", delay: 0.5 }}
+                      className={`h-full rounded-full bg-gradient-to-r ${
+                        budgetProgress > 90 ? 'from-error to-error/50 shadow-[0_0_10px_rgba(244,63,94,0.5)]' : 
+                        budgetProgress > 70 ? 'from-warning to-warning/50' : 'from-primary to-primary/50 shadow-[0_0_10px_rgba(99,102,241,0.5)]'
+                      }`}
+                    />
+                  </div>
 
-              <div className="flex justify-between items-center">
-                <div className="flex items-center gap-1.5">
-                  <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest">Spent</p>
-                  <p className="text-[11px] text-white font-mono font-bold tracking-wider">₹{monthlySpent.total.toLocaleString()}</p>
-                </div>
-                <span className={`text-[10px] font-black tracking-tighter ${budgetProgress > 90 ? 'text-error' : 'text-white/40'}`}>
-                  {budgetProgress.toFixed(0)}%
-                </span>
-              </div>
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest">Spent</p>
+                      <p className="text-[11px] text-white font-mono font-bold tracking-wider">₹{monthlySpent.total.toLocaleString()}</p>
+                    </div>
+                    <span className={`text-[10px] font-black tracking-tighter ${budgetProgress > 90 ? 'text-error' : 'text-white/40'}`}>
+                      {budgetProgress.toFixed(0)}%
+                    </span>
+                  </div>
+                </>
+              )}
             </div>
           </>
         )}
@@ -625,62 +657,6 @@ export default function DashboardScreen() {
             </div>
           )}
         </div>
-      </div>
-
-      {/* AI Smart Greeting & Alerts */}
-      <div className="space-y-4 mb-6">
-        <AnimatePresence mode="wait">
-          {(aiBudgetAlert || predictiveAlert) && (
-            <motion.div 
-              key="budget-alert"
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              className="overflow-hidden"
-            >
-              <div className="bg-error/10 border border-error/20 rounded-2xl p-4 flex gap-3 relative overflow-hidden group">
-                <div className="w-10 h-10 rounded-full bg-error/20 flex items-center justify-center text-error shrink-0">
-                  <AlertCircle size={18} />
-                </div>
-                <div className="flex-1">
-                  <p className="text-xs text-error font-bold uppercase tracking-widest mb-1">Budget Alert</p>
-                  <p className="text-sm text-gray-200 leading-snug font-medium mb-1">
-                    {predictiveAlert}
-                  </p>
-                  {aiBudgetAlert && (
-                    <p className="text-xs text-gray-400 leading-relaxed italic">
-                      AI Note: {aiBudgetAlert}
-                    </p>
-                  )}
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        <AnimatePresence mode="wait">
-          {smartGreeting && (
-            <motion.div 
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              className="overflow-hidden"
-            >
-              <div className="bg-primary/10 border border-primary/20 rounded-2xl p-4 flex gap-3 relative overflow-hidden group">
-                <div className="absolute top-0 right-0 w-24 h-24 bg-primary/20 blur-[40px] rounded-full group-hover:scale-150 transition-transform duration-1000" />
-                <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary shrink-0">
-                  <Sparkles size={18} />
-                </div>
-                <div className="flex-1">
-                  <p className="text-xs text-primary font-bold uppercase tracking-widest mb-1">Smart Insight</p>
-                  <p className="text-sm text-gray-200 leading-snug font-medium italic">
-                    "{smartGreeting}"
-                  </p>
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
       </div>
 
 
@@ -923,6 +899,67 @@ export default function DashboardScreen() {
                   className="text-gray-500 font-bold uppercase tracking-widest text-xs hover:text-white transition-colors"
                 >
                   Close
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Floating Budget Alert Popup Modal */}
+      <AnimatePresence>
+        {isBudgetAlertOpen && (aiBudgetAlert || predictiveAlert) && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsBudgetAlertOpen(false)}
+              className="absolute inset-0 bg-black/80 backdrop-blur-md"
+            />
+            <motion.div 
+              initial={{ scale: 0.9, y: 50, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              exit={{ scale: 0.9, y: 50, opacity: 0 }}
+              className="relative w-full max-w-md bg-surface border border-error/30 rounded-[32px] p-8 shadow-2xl overflow-hidden glass-card text-center"
+            >
+              <div className="absolute top-0 right-0 w-64 h-64 bg-error/10 blur-[80px] rounded-full -z-10" />
+              
+              <div className="w-16 h-16 bg-error/10 border border-error/20 rounded-2xl flex items-center justify-center text-error mx-auto mb-6 shadow-[0_0_20px_rgba(244,63,94,0.2)] animate-pulse">
+                <AlertCircle size={32} />
+              </div>
+              
+              <h3 className="text-2xl font-bold text-white mb-2 tracking-tight">⚠️ Budget Warning!</h3>
+              
+              <div className="space-y-4 mb-8 mt-4 text-left bg-black/40 border border-white/5 rounded-2xl p-5">
+                <p className="text-sm text-gray-200 leading-relaxed font-semibold">
+                  {predictiveAlert}
+                </p>
+                {aiBudgetAlert && (
+                  <div className="border-t border-white/5 pt-3 mt-3">
+                    <p className="text-[10px] text-primary-light font-black uppercase tracking-widest mb-1">AI Recommendation</p>
+                    <p className="text-xs text-gray-300 leading-relaxed italic">
+                      "{aiBudgetAlert}"
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-4">
+                <button 
+                  onClick={() => setIsBudgetAlertOpen(false)}
+                  className="flex-1 h-14 rounded-2xl bg-white/5 text-gray-300 font-semibold hover:bg-white/10 active:scale-95 transition-all cursor-pointer"
+                >
+                  Acknowledge
+                </button>
+                <button 
+                  onClick={() => {
+                    setIsBudgetAlertOpen(false);
+                    navigate('/budget');
+                  }}
+                  className="flex-1 h-14 rounded-2xl bg-error text-white font-semibold hover:bg-error/90 shadow-lg shadow-error/20 active:scale-95 transition-all cursor-pointer"
+                >
+                  Adjust Budget
                 </button>
               </div>
             </motion.div>
