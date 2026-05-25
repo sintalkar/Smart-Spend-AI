@@ -262,13 +262,15 @@ export default function DashboardScreen() {
     }
   };
 
+  // Sync initialBalanceState from localStorage when another tab/window writes it
   useEffect(() => {
-    const checkBalance = () => {
-      const stored = localStorage.getItem('initial_balance');
-      setInitialBalanceState(stored ? Number(stored) : null);
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === 'initial_balance') {
+        setInitialBalanceState(e.newValue ? Number(e.newValue) : null);
+      }
     };
-    const interval = setInterval(checkBalance, 1000);
-    return () => clearInterval(interval);
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
   }, []);
 
   const totalBalance = (initialBalanceState || 0) + transactions.reduce((acc, t) => t.type === 'CREDIT' ? acc + t.amount : acc - t.amount, 0);

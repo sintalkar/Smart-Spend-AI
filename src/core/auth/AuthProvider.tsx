@@ -28,8 +28,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = async () => {
     try {
       syncService.stopSync();
-      await db.clearAllData();
+      // Sign out first — if it fails, local data is preserved so the user can retry
       await auth.signOut();
+      await db.clearAllData();
+      // Clear all localStorage keys set by this app
+      localStorage.removeItem('initial_balance');
+      localStorage.removeItem('ai_greeting_cache');
       console.log("[AuthProvider] User signed out and local data cleared");
     } catch (error) {
       console.error("[AuthProvider] Sign out error:", error);

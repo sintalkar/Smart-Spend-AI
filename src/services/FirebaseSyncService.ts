@@ -97,16 +97,21 @@ export const syncService = new FirebaseSyncService();
 
 // Attach hooks to Dexie to catch all local changes and push them to the cloud
 db.transactions.hook('creating', (primKey, obj) => {
-  syncService.pushTransaction(obj);
+  syncService.pushTransaction(obj).catch(err =>
+    console.error('[Sync] Hook: failed to push created transaction', err)
+  );
 });
 
 db.transactions.hook('updating', (modifications, primKey, obj) => {
-  // Pass the merged object
-  syncService.pushTransaction({ ...obj, ...modifications });
+  syncService.pushTransaction({ ...obj, ...modifications } as TransactionEntity).catch(err =>
+    console.error('[Sync] Hook: failed to push updated transaction', err)
+  );
 });
 
 db.transactions.hook('deleting', (primKey) => {
   if (typeof primKey === 'string') {
-    syncService.deleteTransaction(primKey);
+    syncService.deleteTransaction(primKey).catch(err =>
+      console.error('[Sync] Hook: failed to delete transaction from cloud', err)
+    );
   }
 });

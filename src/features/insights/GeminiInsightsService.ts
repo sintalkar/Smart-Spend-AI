@@ -103,13 +103,20 @@ export class GeminiInsightsService {
   private GREETING_CACHE_TTL = 1000 * 60 * 30; // 30 minutes cache
 
   public async getSmartGreeting(userName: string, totalBalance: number, monthlySpent: number, budgetLimit: number): Promise<string> {
-    // Check memory and local storage cache
     const now = Date.now();
+
+    // Check in-memory cache first (fastest, no parsing overhead)
+    if (this.greetingCache && now - this.greetingCache.timestamp < this.GREETING_CACHE_TTL) {
+      return this.greetingCache.text;
+    }
+
+    // Fall back to localStorage cache (survives page reloads)
     const storedCache = localStorage.getItem('ai_greeting_cache');
     if (storedCache) {
       try {
         const parsed = JSON.parse(storedCache);
         if (now - parsed.timestamp < this.GREETING_CACHE_TTL) {
+          this.greetingCache = parsed; // warm the in-memory cache
           return parsed.text;
         }
       } catch (e) {}
