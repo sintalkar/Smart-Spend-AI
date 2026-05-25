@@ -19,6 +19,7 @@ import SetBudgetScreen from './features/budget/SetBudgetScreen';
 import { AuthProvider } from './core/auth/AuthProvider';
 import { NOTIFICATION_MESSAGES, requestNotificationPermission, showNotification } from './core/utils/notifications';
 import { InstallGuideScreen } from './features/pwa/InstallGuideScreen';
+import LandingPage from './features/landing/LandingPage';
 
 export default function App() {
   const [hasSeenOnboarding, setHasSeenOnboarding] = useState(true);
@@ -109,6 +110,7 @@ export default function App() {
             <Route path="budget" element={<SetBudgetScreen />} />
             <Route path="install-guide" element={<InstallGuideScreen />} />
           </Route>
+          <Route path="/landing" element={<LandingPage />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>

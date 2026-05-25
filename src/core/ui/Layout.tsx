@@ -10,6 +10,7 @@ import { PwaInstallPrompt } from '../../features/pwa/PwaInstallPrompt';
 import { db as firestoreDb } from '../../firebase';
 import { doc, setDoc } from 'firebase/firestore';
 import { useAuth } from '../auth/AuthProvider';
+import { AiAssistant } from '../../features/ai_assistant/AiAssistant';
 
 export function Layout() {
   const location = useLocation();
@@ -213,6 +214,7 @@ export function Layout() {
         <ReceiptScannerScreen onClose={() => setIsReceiptScannerOpen(false)} />
       )}
       <PwaInstallPrompt />
+      <AiAssistant />
 
       {/* Balance Setup Modal */}
       <AnimatePresence>
