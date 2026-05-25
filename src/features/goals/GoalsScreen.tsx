@@ -188,7 +188,9 @@ export default function GoalsScreen() {
                       exit={{ height: 0, opacity: 0 }} className="overflow-hidden space-y-3"
                     >
                       {completed.map(g => (
-                        <GoalCard key={g.id} goal={g} onClick={() => navigate(`/goals/${g.id}`)} />
+                        <div key={g.id}>
+                          <GoalCard goal={g} onClick={() => navigate(`/goals/${g.id}`)} />
+                        </div>
                       ))}
                     </motion.div>
                   )}

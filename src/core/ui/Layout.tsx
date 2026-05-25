@@ -5,17 +5,21 @@ import { motion, AnimatePresence } from 'motion/react';
 import clsx from 'clsx';
 import { VoiceEntryBottomSheet } from '../../features/add_expense/VoiceEntryBottomSheet';
 import ReceiptScannerScreen from '../../features/receipt_scanner/ReceiptScannerScreen';
+import { adminService, AdminFeatureToggles } from '../../features/admin/AdminService';
 import { PwaInstallPrompt } from '../../features/pwa/PwaInstallPrompt';
 import { db as firestoreDb } from '../../firebase';
 import { doc, setDoc } from 'firebase/firestore';
 import { useAuth } from '../auth/AuthProvider';
 import { AiAssistant } from '../../features/ai_assistant/AiAssistant';
+import { AnnouncementBanner } from './AnnouncementBanner';
+import { MaintenanceScreen } from './MaintenanceScreen';
 
 export function Layout() {
   const location = useLocation();
   const [isFabOpen, setIsFabOpen] = useState(false);
   const [isVoiceSheetOpen, setIsVoiceSheetOpen] = useState(false);
   const [isReceiptScannerOpen, setIsReceiptScannerOpen] = useState(false);
+  const [toggles, setToggles] = useState<AdminFeatureToggles>(adminService.getToggles());
   const openedOnce = useRef(false);
 
   const { user } = useAuth();
@@ -26,6 +30,13 @@ export function Layout() {
     const stored = localStorage.getItem('initial_balance');
     return stored ? Number(stored) : null;
   });
+
+  // Live sync: admin feature toggle changes arrive via Firestore onSnapshot
+  useEffect(() => {
+    return adminService.subscribe(() => {
+      setToggles(adminService.getToggles());
+    });
+  }, []);
 
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
@@ -51,21 +62,17 @@ export function Layout() {
       setBalanceError("Please enter a valid positive balance");
       return;
     }
-    
+
     try {
       localStorage.setItem('initial_balance', val.toString());
       setInitialBalance(val);
       setIsBalanceModalOpen(false);
       setBalanceInput('');
       setBalanceError(null);
-      
-      // Also sync it to Firestore if logged in
+
       if (user) {
         const userDocRef = doc(firestoreDb, `users/${user.uid}`);
-        await setDoc(userDocRef, {
-          initialBalance: val,
-          updatedAt: Date.now()
-        }, { merge: true });
+        await setDoc(userDocRef, { initialBalance: val, updatedAt: Date.now() }, { merge: true });
       }
     } catch (e) {
       console.error(e);
@@ -73,7 +80,12 @@ export function Layout() {
     }
   };
 
-
+  useEffect(() => {
+    if (!openedOnce.current) {
+      adminService.logEvent('APP_OPEN');
+      openedOnce.current = true;
+    }
+  }, []);
 
   const navItems = [
     { path: '/', icon: Home, label: 'Home' },
@@ -84,9 +96,9 @@ export function Layout() {
   ];
 
   const fabOptions = [
-    { icon: Edit3, label: 'Manual Entry', color: 'bg-primary', onClick: () => { window.location.href='/add'; }, enabled: true },
-    { icon: Mic, label: 'Voice', color: 'bg-secondary', onClick: () => { setIsVoiceSheetOpen(true); }, enabled: true },
-    { icon: Camera, label: 'Receipt', color: 'bg-blue-500', onClick: () => { setIsReceiptScannerOpen(true); }, enabled: true },
+    { icon: Edit3, label: 'Manual Entry', color: 'bg-primary',  onClick: () => { adminService.logEvent('MANUAL_ENTRY');      window.location.href = '/add'; }, enabled: true },
+    { icon: Mic,    label: 'Voice',        color: 'bg-secondary', onClick: () => { adminService.logEvent('VOICE_ENTRY_USED'); setIsVoiceSheetOpen(true); },    enabled: toggles.voiceEntry },
+    { icon: Camera, label: 'Receipt',      color: 'bg-blue-500', onClick: () => { adminService.logEvent('RECEIPT_SCANNED');  setIsReceiptScannerOpen(true); }, enabled: toggles.receiptScanner },
   ];
 
   // Close FAB when navigating
@@ -94,8 +106,16 @@ export function Layout() {
     setIsFabOpen(false);
   }, [location.pathname]);
 
+  // Show maintenance screen instantly when admin toggles it on
+  if (toggles.maintenanceMode) {
+    return <MaintenanceScreen message={toggles.maintenanceMessage} />;
+  }
+
   return (
     <div className="flex flex-col h-screen w-full relative overflow-hidden bg-background md:mx-auto md:max-w-2xl lg:max-w-4xl shadow-2xl">
+      {/* Announcement banner — live from Firestore */}
+      <AnnouncementBanner />
+
       <main className="flex-1 overflow-y-auto pb-24 md:pb-6 no-scrollbar w-full h-full">
         <Outlet />
       </main>
@@ -104,14 +124,14 @@ export function Layout() {
       <AnimatePresence>
         {isFabOpen && (
           <>
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="absolute inset-0 bg-background/80 backdrop-blur-sm z-40"
               onClick={() => setIsFabOpen(false)}
             />
-            <motion.div 
+            <motion.div
               initial={{ y: 200, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: 200, opacity: 0 }}
@@ -121,7 +141,7 @@ export function Layout() {
               <h3 className="title-bold text-xl mb-4">Quick Add</h3>
               <div className="grid grid-cols-3 gap-4">
                 {fabOptions.filter(o => o.enabled).map((opt, i) => (
-                  <motion.div 
+                  <motion.div
                     key={i}
                     initial={{ scale: 0.8, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
@@ -145,7 +165,7 @@ export function Layout() {
       </AnimatePresence>
 
       <nav className="absolute bottom-6 left-6 right-6 h-16 glass rounded-[2rem] px-4 flex justify-between items-center z-50 shadow-2xl border border-white/20">
-        {navItems.map((item, index) => {
+        {navItems.map((item) => {
           if (item.isFab?.()) {
             return (
               <div key="fab" className="relative -top-2">
@@ -163,7 +183,7 @@ export function Layout() {
           }
 
           const isActive = location.pathname === item.path;
-          
+
           return (
             <Link
               key={item.path}
@@ -174,7 +194,7 @@ export function Layout() {
               )}
             >
               <item.icon size={20} strokeWidth={isActive ? 2.5 : 2} />
-              
+
               {isActive && (
                 <motion.div
                   layoutId="nav-dot"
@@ -186,12 +206,10 @@ export function Layout() {
         })}
       </nav>
 
-      <VoiceEntryBottomSheet 
-        isOpen={isVoiceSheetOpen} 
-        onClose={() => setIsVoiceSheetOpen(false)} 
-        onAdded={() => {
-           // Provide haptic feedback or simple refresh if needed here
-        }}
+      <VoiceEntryBottomSheet
+        isOpen={isVoiceSheetOpen}
+        onClose={() => setIsVoiceSheetOpen(false)}
+        onAdded={() => {}}
       />
 
       {isReceiptScannerOpen && (
@@ -204,25 +222,25 @@ export function Layout() {
       <AnimatePresence>
         {isBalanceModalOpen && (
           <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsBalanceModalOpen(false)}
               className="absolute inset-0 bg-black/80 backdrop-blur-md"
             />
-            <motion.div 
+            <motion.div
               initial={{ scale: 0.9, y: 50, opacity: 0 }}
               animate={{ scale: 1, y: 0, opacity: 1 }}
               exit={{ scale: 0.9, y: 50, opacity: 0 }}
               className="relative w-full max-w-md bg-surface border border-white/10 rounded-[32px] p-8 shadow-2xl overflow-hidden glass-card text-center"
             >
               <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 blur-[80px] rounded-full -z-10" />
-              
+
               <div className="w-16 h-16 bg-primary/10 border border-primary/20 rounded-2xl flex items-center justify-center text-primary mx-auto mb-6">
                 <Coins size={32} className="animate-bounce" />
               </div>
-              
+
               <h3 className="text-2xl font-bold text-white mb-2">Set Available Balance</h3>
               <p className="text-gray-400 text-sm mb-6 leading-relaxed">
                 Please enter your starting available balance to unlock manual entry, voice, receipt scanning, and transfers.
@@ -230,7 +248,7 @@ export function Layout() {
 
               <div className="relative mb-6">
                 <span className="absolute left-5 top-1/2 -translate-y-1/2 text-2xl font-bold text-white/50">₹</span>
-                <input 
+                <input
                   type="number"
                   autoFocus
                   value={balanceInput}
@@ -238,16 +256,14 @@ export function Layout() {
                     setBalanceInput(e.target.value);
                     if (balanceError) setBalanceError(null);
                   }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleSetBalance();
-                  }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleSetBalance(); }}
                   placeholder="0"
                   className="w-full h-16 bg-black/40 border border-white/10 rounded-2xl pl-12 pr-6 text-2xl font-bold text-white placeholder:text-white/20 outline-none focus:border-primary/50 transition-colors"
                 />
-                
+
                 <AnimatePresence>
                   {balanceError && (
-                    <motion.div 
+                    <motion.div
                       initial={{ opacity: 0, y: -10 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -10 }}
@@ -261,13 +277,13 @@ export function Layout() {
               </div>
 
               <div className="flex gap-4">
-                <button 
+                <button
                   onClick={() => setIsBalanceModalOpen(false)}
                   className="flex-1 h-14 rounded-2xl bg-white/5 text-gray-300 font-semibold hover:bg-white/10 active:scale-95 transition-all"
                 >
                   Cancel
                 </button>
-                <button 
+                <button
                   onClick={handleSetBalance}
                   className="flex-1 h-14 rounded-2xl bg-primary text-white font-semibold hover:bg-primary/95 shadow-lg shadow-primary/20 active:scale-95 transition-all"
                 >
