@@ -1,7 +1,11 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Bell, User as UserIcon, Sparkles, ChevronRight, ShoppingBag, Coffee, Car, Trash2, ArrowDownLeft, ArrowUpRight, Activity, LogOut, Target, AlertCircle, Mic, Shield, Zap, RefreshCw, Plus, Settings } from 'lucide-react';
+import { 
+  Bell, User as UserIcon, Sparkles, ChevronRight, ShoppingBag, Coffee, 
+  Car, Trash2, ArrowDownLeft, ArrowUpRight, Activity, LogOut, Target, 
+  AlertCircle, Mic, Shield, Zap, RefreshCw, Plus, Settings 
+} from 'lucide-react';
 import { db } from '../../db';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../core/auth/AuthProvider';
@@ -55,7 +59,7 @@ function AnimatedCounter({ value }: { value: number }) {
 
   return (
     <span>
-      {displayValue.toLocaleString('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+      {displayValue.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
     </span>
   );
 }
@@ -181,7 +185,6 @@ export default function DashboardScreen() {
         });
       } else {
         const newId = uuidv4();
-        const now = Date.now();
         const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime();
         const endOfMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0, 23, 59, 59, 999).getTime();
 
@@ -253,7 +256,6 @@ export default function DashboardScreen() {
       }
     });
     
-    // We don't have historical scores here for simplicity, just current month
     const res = scoreCalculator.calculateScore(tSpent, inc, catTotals, Object.values(dailyMap), 0, 0, []);
     return { healthScore: res.total, healthGrade: res.grade };
   }, [transactions]);
@@ -283,7 +285,6 @@ export default function DashboardScreen() {
   useEffect(() => {
     const fetchAiAlert = async () => {
       const now = Date.now();
-      // Only fetch if 60 seconds have passed since the last fetch to prevent quota exhaustion
       if (now - lastAlertFetchTime.current < 60000) return;
 
       if (projection >= budgetLimit * 0.9 && monthlySpent.total > 0) {
@@ -318,7 +319,6 @@ export default function DashboardScreen() {
       }
     };
     
-    // Slight debounce to let initial data settle
     const timeout = setTimeout(fetchAiAlert, 1500);
     return () => clearTimeout(timeout);
   }, [projection, budgetLimit, monthlySpent.total]);
@@ -333,7 +333,6 @@ export default function DashboardScreen() {
     let timeoutId: NodeJS.Timeout;
 
     if (user && totalBalance !== undefined) {
-      // Debounce the AI fetch to prevent rapid calls during initial data loading
       timeoutId = setTimeout(() => {
         insightsService.getSmartGreeting(
           user.displayName || 'Friend',
@@ -352,54 +351,52 @@ export default function DashboardScreen() {
     };
   }, [user?.uid, totalBalance, monthlySpent.total, budgetLimit]);
 
-  const handleSwipeDelete = async (id: string) => {
-    try {
-      await db.transactions.update(id, { isDeleted: 1 });
-    } catch (error) {
-      console.error("Failed to delete transaction:", error);
-    }
-  };
-
   return (
-    <div className="p-6 pb-32">
-      {/* Top Bar */}
+    <div className="p-6 pb-32 bg-[#0A0A0C] min-h-screen text-white">
+      {/* 1. Header Navigation Bar */}
       <motion.header 
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        className="flex items-center justify-between mb-8 mt-2 sticky top-0 z-50 py-2 backdrop-blur-md -mx-6 px-6"
+        className="flex items-center justify-between mb-8 mt-2 sticky top-0 z-50 py-3 backdrop-blur-xl bg-[#0A0A0C]/80 -mx-6 px-6 border-b border-white/5"
       >
         <div 
           className="flex items-center gap-3 cursor-pointer group"
           onClick={() => setIsProfileMenuOpen(true)}
         >
-          <div className="w-10 h-10 rounded-xl bg-surface border border-white/10 flex items-center justify-center overflow-hidden glow-primary">
+          <div className="w-12 h-12 rounded-2xl bg-surface border border-white/10 flex items-center justify-center overflow-hidden shadow-lg shadow-primary/20 relative group-hover:border-primary/50 transition-all">
             {user?.photoURL ? (
               <img src={user.photoURL} alt="User Profile" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
             ) : (
-              <UserIcon size={20} className="text-gray-400" aria-label="User Profile" />
+              <UserIcon size={24} className="text-gray-400" aria-label="User Profile" />
             )}
+            <div className="absolute inset-0 bg-primary/10 opacity-0 group-hover:opacity-100 transition-opacity" />
           </div>
           <div>
-            <p className="text-[10px] text-gray-500 font-bold uppercase tracking-[0.2em] select-none">Welcome back</p>
-            <h2 className="text-sm font-bold text-white tracking-wide select-none">{user?.displayName?.split(' ')[0] || 'User'}</h2>
+            <span className="text-[10px] text-gray-500 font-extrabold uppercase tracking-widest block mb-0.5 select-none">Welcome back</span>
+            <h2 className="text-base font-extrabold text-white tracking-wide group-hover:text-primary transition-colors select-none">
+              {user?.displayName?.split(' ')[0] || 'User'}
+            </h2>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+
+        <div className="flex items-center gap-2">
           <button 
             onClick={handleResetData}
             disabled={isResetting}
-            className="w-10 h-10 rounded-xl bg-surface border border-white/10 flex items-center justify-center transition-all hover:bg-warning/10 active:scale-95 group" 
+            className="w-11 h-11 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center hover:bg-warning/10 hover:border-warning/30 transition-all active:scale-95 group relative overflow-hidden" 
             aria-label="Reset Data"
           >
-            <RefreshCw size={16} className={`text-gray-400 group-hover:text-warning transition-colors ${isResetting ? 'animate-spin' : ''}`} />
+            <RefreshCw size={16} className={`text-gray-400 group-hover:text-warning transition-transform duration-500 ${isResetting ? 'animate-spin' : 'group-hover:rotate-180'}`} />
           </button>
-          <button className="w-10 h-10 rounded-xl bg-surface border border-white/10 flex items-center justify-center relative transition-all hover:bg-white/5 active:scale-95 group" aria-label="Check Notifications">
-            <Bell size={18} className="text-gray-400 group-hover:text-primary transition-colors" aria-hidden="true" />
-            <span className="absolute top-2.5 right-2.5 w-1.5 h-1.5 bg-primary rounded-full animate-pulse"></span>
+          
+          <button className="w-11 h-11 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center relative hover:bg-primary/10 hover:border-primary/30 transition-all active:scale-95 group overflow-hidden" aria-label="Notifications">
+            <Bell size={18} className="text-gray-400 group-hover:text-primary transition-colors animate-pulse" />
+            <span className="absolute top-3.5 right-3.5 w-2 h-2 bg-primary rounded-full shadow-[0_0_10px_#6C63FF]"></span>
           </button>
+
           <button 
             onClick={logout} 
-            className="w-10 h-10 rounded-xl bg-surface border border-white/10 flex items-center justify-center transition-all hover:bg-error/10 active:scale-95 group" 
+            className="w-11 h-11 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center hover:bg-error/10 hover:border-error/30 transition-all active:scale-95 group" 
             aria-label="Logout"
           >
             <LogOut size={16} className="text-gray-400 group-hover:text-error transition-colors" />
@@ -407,26 +404,42 @@ export default function DashboardScreen() {
         </div>
       </motion.header>
 
-      {/* Balance Hero Card */}
+      {/* 2. Intelligent AI Smart Greeting Banner */}
+      {smartGreeting && (
+        <motion.div 
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-8 p-4 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border-l-2 border-primary rounded-r-3xl flex items-center gap-3 relative overflow-hidden"
+        >
+          <div className="absolute top-0 right-0 w-32 h-full bg-primary/5 blur-xl rounded-full" />
+          <Sparkles size={16} className="text-primary shrink-0 animate-pulse" />
+          <p className="text-xs text-gray-300 leading-relaxed font-semibold italic">
+            "{smartGreeting}"
+          </p>
+        </motion.div>
+      )}
+
+      {/* 3. Obsidian Balance Hero Slab */}
       <motion.section 
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         transition={{ type: "spring", stiffness: 300, damping: 25, delay: 0.1 }}
-        className="glass-card rounded-[32px] p-8 mb-6 relative overflow-hidden"
+        className="relative overflow-hidden rounded-[32px] bg-gradient-to-br from-[#181822] via-[#121217] to-[#0A0A0C] border border-white/10 p-8 mb-8 shadow-[0_30px_60px_-15px_rgba(0,0,0,0.8),0_0_50px_rgba(108,99,255,0.05)]"
       >
-        <div className="absolute top-0 right-0 w-full h-full bg-gradient-to-br from-primary/10 via-transparent to-transparent pointer-events-none"></div>
-        
+        <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 blur-[80px] rounded-full pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-48 h-48 bg-secondary/5 blur-[60px] rounded-full pointer-events-none" />
+
         {initialBalanceState === null ? (
-          <div className="relative z-10">
-            <div className="flex items-center gap-2 text-primary mb-3">
-              <Sparkles size={18} className="animate-pulse" />
-              <span className="text-[10px] font-black uppercase tracking-[0.25em]">Unlock SmartSpend AI</span>
+          <div className="relative z-10 text-center py-6">
+            <div className="flex items-center justify-center gap-2 text-primary mb-4">
+              <Sparkles size={20} className="animate-spin" />
+              <span className="text-xs font-black uppercase tracking-[0.25em]">Unlock SmartSpend AI</span>
             </div>
-            <h3 className="text-xl font-extrabold text-white mb-2 leading-tight">Welcome to SmartSpend!</h3>
-            <p className="text-white/60 text-xs mb-6 max-w-sm">
-              Please enter your starting available balance to unlock manual entry, voice parsing, receipt scanning, and AI analytics.
+            <h3 className="text-2xl font-extrabold text-white mb-2 tracking-tight">Unlock Available Balance</h3>
+            <p className="text-white/60 text-xs mb-6 max-w-sm mx-auto leading-relaxed font-medium">
+              Please enter your starting available balance to initialize manual tracking, voice input, receipt scanning, and AI recommendations.
             </p>
-            <div className="flex gap-3">
+            <div className="flex gap-3 max-w-sm mx-auto">
               <div className="relative flex-1">
                 <span className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40 font-bold text-lg">₹</span>
                 <input 
@@ -453,7 +466,7 @@ export default function DashboardScreen() {
                       }
                     }
                   }}
-                  className="w-full h-12 bg-black/40 border border-white/10 rounded-2xl pl-10 pr-4 text-white font-bold outline-none focus:border-primary/50 transition-colors"
+                  className="w-full h-12 bg-black/45 border border-white/10 rounded-2xl pl-10 pr-4 text-white font-bold outline-none focus:border-primary/50 transition-colors"
                 />
               </div>
               <button 
@@ -477,83 +490,86 @@ export default function DashboardScreen() {
               </button>
             </div>
             {initBalError && (
-              <p className="text-error text-[10px] mt-2 font-bold uppercase tracking-wider">{initBalError}</p>
+              <p className="text-error text-[10px] mt-3 font-extrabold uppercase tracking-wider">{initBalError}</p>
             )}
           </div>
         ) : (
           <>
             <div className="flex justify-between items-center mb-4 relative z-10">
-              <p className="text-white/60 font-bold text-[10px] uppercase tracking-[0.2em]">Available Balance</p>
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-primary animate-pulse shadow-[0_0_8px_#6C63FF]" />
+                <p className="text-white/50 font-extrabold text-[10px] uppercase tracking-[0.2em] select-none">Available Balance</p>
+              </div>
               <button 
                 onClick={() => setIsAddBalanceOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/15 active:scale-95 transition-all text-[10px] font-black uppercase tracking-wider text-white border border-white/5 shadow-md cursor-pointer"
+                className="flex items-center gap-1.5 px-4 py-2 rounded-2xl bg-white/5 hover:bg-white/10 active:scale-95 transition-all text-[10px] font-black uppercase tracking-widest text-white border border-white/10 shadow-lg cursor-pointer"
               >
-                <Plus size={12} className="text-primary animate-pulse" />
-                <span>Add Balance</span>
+                <Plus size={12} className="text-primary" />
+                <span>Add Money</span>
               </button>
             </div>
             
             <div 
               onClick={() => setIsAddBalanceOpen(true)}
-              className="text-[3.5rem] leading-none font-display font-bold tracking-tighter relative z-10 text-white mb-10 drop-shadow-lg cursor-pointer hover:scale-[1.02] active:scale-[0.98] transition-transform"
+              className="text-[3.5rem] leading-none font-display font-extrabold tracking-tighter relative z-10 text-white mb-8 hover:scale-[1.02] active:scale-[0.98] transition-transform cursor-pointer flex items-baseline gap-1"
             >
-              {totalBalance < 0 ? "-" : ""}
+              <span className="text-4xl text-gray-500 font-bold">₹</span>
               <AnimatedCounter value={Math.abs(totalBalance)} />
             </div>
 
-            <div className="relative z-10 bg-black/40 backdrop-blur-md rounded-2xl p-5 border border-white/5">
+            <div className="relative z-10 bg-black/45 border border-white/5 rounded-3xl p-5 backdrop-blur-md">
               {!isBudgetSet ? (
                 <div className="flex items-center justify-between gap-4">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-error/10 border border-error/20 flex items-center justify-center text-error animate-pulse">
+                    <div className="w-10 h-10 rounded-2xl bg-error/10 border border-error/20 flex items-center justify-center text-error animate-pulse">
                       <Target size={20} />
                     </div>
                     <div>
-                      <span className="text-[9px] text-white/40 font-bold uppercase tracking-widest block mb-0.5">Monthly Goal</span>
-                      <span className="text-lg font-black text-white/50 tracking-tight leading-none">
-                        Not Set
+                      <span className="text-[9px] text-white/40 font-extrabold uppercase tracking-widest block mb-0.5">Monthly Goal</span>
+                      <span className="text-lg font-black text-white/40 tracking-tight leading-none">
+                        Not Configured
                       </span>
                     </div>
                   </div>
                   <button
                     onClick={() => navigate('/budget')}
-                    className="px-4 py-2.5 bg-primary hover:bg-primary-light active:scale-95 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all cursor-pointer shadow-lg shadow-primary/20 flex items-center gap-1.5"
+                    className="px-4 py-2.5 bg-primary hover:bg-primary/90 active:scale-95 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all cursor-pointer shadow-lg shadow-primary/20 flex items-center gap-1.5 border border-white/10"
                   >
                     <Plus size={12} />
-                    <span>Set Budget</span>
+                    <span>Set Limit</span>
                   </button>
                 </div>
               ) : (
                 <>
                   <div className="flex justify-between items-center mb-3">
                     <div className="flex items-center gap-2">
-                      <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></div>
-                      <span className="text-[10px] text-white/60 font-bold uppercase tracking-widest">Monthly Goal</span>
+                      <Target size={14} className="text-primary animate-pulse" />
+                      <span className="text-[10px] text-white/50 font-extrabold uppercase tracking-wider">Monthly Limit</span>
                     </div>
-                    <span className="text-white text-sm font-mono font-black tracking-wider bg-primary/20 border border-primary/30 px-2 py-0.5 rounded-md">
+                    <span className="text-white text-xs font-mono font-black tracking-wider bg-primary/20 border border-primary/30 px-2.5 py-1 rounded-xl">
                       ₹{budgetLimit.toLocaleString()}
                     </span>
                   </div>
                   
-                  <div className="w-full bg-white/10 rounded-full h-1.5 overflow-hidden mb-3">
+                  <div className="w-full bg-white/5 border border-white/5 rounded-full h-2 overflow-hidden mb-3">
                     <motion.div 
                       initial={{ width: 0 }}
                       animate={{ width: `${budgetProgress}%` }}
                       transition={{ duration: 1.5, ease: "circOut", delay: 0.5 }}
                       className={`h-full rounded-full bg-gradient-to-r ${
-                        budgetProgress > 90 ? 'from-error to-error/50 shadow-[0_0_10px_rgba(244,63,94,0.5)]' : 
-                        budgetProgress > 70 ? 'from-warning to-warning/50' : 'from-primary to-primary/50 shadow-[0_0_10px_rgba(99,102,241,0.5)]'
+                        budgetProgress > 90 ? 'from-error to-pink-500 shadow-[0_0_12px_rgba(244,63,94,0.4)]' : 
+                        budgetProgress > 70 ? 'from-warning to-orange-400' : 'from-primary to-emerald-400 shadow-[0_0_12px_rgba(108,99,255,0.4)]'
                       }`}
                     />
                   </div>
 
-                  <div className="flex justify-between items-center">
+                  <div className="flex justify-between items-center text-xs">
                     <div className="flex items-center gap-1.5">
-                      <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest">Spent</p>
-                      <p className="text-[11px] text-white font-mono font-bold tracking-wider">₹{monthlySpent.total.toLocaleString()}</p>
+                      <span className="text-[10px] text-white/40 font-bold uppercase tracking-wider">Total Debited</span>
+                      <span className="text-xs text-white font-mono font-black">₹{monthlySpent.total.toLocaleString()}</span>
                     </div>
-                    <span className={`text-[10px] font-black tracking-tighter ${budgetProgress > 90 ? 'text-error' : 'text-white/40'}`}>
-                      {budgetProgress.toFixed(0)}%
+                    <span className={`text-[10px] font-black tracking-widest uppercase ${budgetProgress > 90 ? 'text-error' : 'text-primary'}`}>
+                      {budgetProgress.toFixed(0)}% used
                     </span>
                   </div>
                 </>
@@ -563,52 +579,55 @@ export default function DashboardScreen() {
         )}
       </motion.section>
 
-      {/* Health Score Mini-Card */}
+      {/* 4. Elegant Interactive Gauges (Health Score) */}
       <motion.section
         initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ delay: 0.2 }}
         onClick={() => navigate('/score')}
-        className="glass-card rounded-[2.5rem] p-6 mb-8 flex items-center justify-between cursor-pointer group active:scale-95 transition-all relative overflow-hidden"
+        className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-r from-[#121217] via-[#0E0E12] to-[#0A0A0C] border border-white/5 hover:border-success/20 p-6 mb-8 flex items-center justify-between cursor-pointer group active:scale-95 transition-all shadow-lg"
       >
-        <div className="absolute inset-0 bg-gradient-to-r from-success/5 via-transparent to-transparent opacity-40" />
+        <div className="absolute inset-0 bg-gradient-to-r from-success/5 via-transparent to-transparent opacity-40 pointer-events-none" />
         <div className="flex items-center gap-4 relative z-10">
-          <div className="w-14 h-14 rounded-2xl bg-success/10 border border-success/20 flex items-center justify-center text-success overflow-hidden relative">
-            <Shield size={24} className="relative z-10" />
+          <div className="w-14 h-14 rounded-2xl bg-success/15 border border-success/25 flex items-center justify-center text-success overflow-hidden relative shadow-[0_0_20px_rgba(16,185,129,0.15)]">
+            <Shield size={22} className="relative z-10" />
             <motion.div 
                animate={{ rotate: 360 }}
-               transition={{ repeat: Infinity, duration: 8, ease: "linear" }}
-               className="absolute inset-0 border border-success/20 rounded-full scale-150 border-dashed"
+               transition={{ repeat: Infinity, duration: 10, ease: "linear" }}
+               className="absolute inset-0 border border-success/15 rounded-full scale-150 border-dashed"
             />
           </div>
           <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-success/60 mb-0.5">Health Score</p>
+            <span className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-success/70 block mb-0.5">Financial Wellness Score</span>
             <div className="flex items-baseline gap-2">
                <h3 className="text-2xl font-black text-white">{healthScore}</h3>
-               <span className="text-[10px] font-bold text-white/40 uppercase">{healthGrade}</span>
+               <span className="text-[9px] font-extrabold text-white/50 bg-success/20 border border-success/30 px-2 py-0.5 rounded-lg uppercase tracking-wider">{healthGrade}</span>
             </div>
           </div>
         </div>
-        <div className="flex flex-col items-end relative z-10">
-           <Zap size={16} className="text-primary-light mb-2 animate-pulse" />
-           <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-primary-light">
-              <span>View Data</span>
+        <div className="flex flex-col items-end relative z-10 shrink-0">
+           <div className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-primary-light group-hover:translate-x-1 transition-transform">
+              <span>Inspect</span>
               <ChevronRight size={14} />
            </div>
         </div>
       </motion.section>
 
-      {/* Quick Stats Row: Category Budgets */}
+      {/* 5. Category Budgets Envelope Progress */}
       <div className="mb-8">
-        <div className="flex justify-between items-end mb-4">
-          <h3 className="text-lg title-bold">Budget Progress</h3>
+        <div className="flex justify-between items-end mb-5">
+          <div className="flex items-center gap-2">
+            <h3 className="text-lg font-extrabold text-white tracking-tight">Category Budgets</h3>
+            <span className="px-2 py-0.5 bg-white/5 rounded-full text-[9px] text-white/40 font-bold uppercase tracking-widest">Envelopes</span>
+          </div>
           <button 
             onClick={() => navigate('/budget')}
-            className="text-xs text-primary font-bold uppercase tracking-widest"
+            className="text-[10px] text-primary font-black uppercase tracking-widest hover:text-white transition-colors"
           >
-            Manage
+            Adjust Limits
           </button>
         </div>
+        
         <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2 -mx-6 px-6">
           {budgets.filter(b => b.categoryId !== 'global').map((budget, i) => {
             const catId = budget.categoryId!;
@@ -622,46 +641,104 @@ export default function DashboardScreen() {
                 initial={{ x: 20, opacity: 0 }}
                 animate={{ x: 0, opacity: 1 }}
                 transition={{ delay: 0.2 + (i * 0.1) }}
-                className="min-w-[160px] bg-surface p-4 rounded-3xl border border-white/5 flex-shrink-0"
+                className="min-w-[170px] bg-gradient-to-b from-[#121217] to-[#0A0A0C] p-5 rounded-3xl border border-white/5 hover:border-white/10 transition-all flex-shrink-0 relative overflow-hidden"
               >
+                <div className="absolute top-0 right-0 w-12 h-12 bg-primary/5 blur-xl rounded-full" />
                 <div className="flex justify-between items-start mb-4">
-                  <div className={`w-10 h-10 bg-white/5 text-gray-400 rounded-2xl flex items-center justify-center`}>
-                    <Icon size={20} aria-hidden="true" />
+                  <div className="w-10 h-10 bg-white/5 border border-white/5 text-gray-400 rounded-2xl flex items-center justify-center shadow-md">
+                    <Icon size={18} />
                   </div>
-                  <span className={`text-[10px] font-bold px-2 py-1 rounded-lg ${
-                    progress > 90 ? 'bg-error/20 text-error' : 'bg-primary/20 text-primary'
+                  <span className={`text-[9px] font-black px-2 py-0.5 rounded-lg uppercase tracking-wider ${
+                    progress > 90 ? 'bg-error/15 text-error border border-error/25' : 'bg-primary/15 text-primary border border-primary/25'
                   }`}>
                     {progress.toFixed(0)}%
                   </span>
                 </div>
-                <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest mb-1">{categoryNames[catId] || catId}</p>
-                <p className="text-white font-mono font-semibold text-sm mb-2">₹{spent} / ₹{budget.amount}</p>
-                <div className="w-full bg-black/40 h-1 rounded-full overflow-hidden">
+                <p className="text-gray-400 text-[10px] font-extrabold uppercase tracking-widest mb-1.5">{categoryNames[catId] || catId}</p>
+                <p className="text-white font-mono font-black text-sm mb-2">₹{spent} <span className="text-[10px] text-gray-500 font-bold uppercase">/ ₹{budget.amount}</span></p>
+                <div className="w-full bg-white/5 border border-white/5 h-1.5 rounded-full overflow-hidden">
                   <motion.div 
                     initial={{ width: 0 }}
                     animate={{ width: `${progress}%` }}
-                    className={`h-full rounded-full ${progress > 90 ? 'bg-error' : 'bg-primary'}`}
+                    className={`h-full rounded-full ${progress > 90 ? 'bg-error shadow-[0_0_8px_rgba(244,63,94,0.4)]' : 'bg-primary shadow-[0_0_8px_rgba(99,102,241,0.4)]'}`}
                   />
                 </div>
               </motion.div>
             );
           })}
           {budgets.filter(b => b.categoryId !== 'global').length === 0 && (
-            <div className="w-full py-8 bg-surface/50 rounded-3xl border border-dashed border-white/10 flex flex-col items-center justify-center">
-              <p className="text-gray-500 text-xs font-medium mb-3">No category budgets set</p>
+            <div className="w-full py-8 bg-surface/30 rounded-[32px] border border-dashed border-white/10 flex flex-col items-center justify-center text-center">
+              <p className="text-gray-500 text-xs font-semibold mb-3">No category budget limits set</p>
               <button 
-                onClick={() => setIsAddBalanceOpen(true)}
-                className="text-xs text-primary font-bold uppercase tracking-widest px-4 py-2 bg-primary/10 rounded-xl"
+                onClick={() => navigate('/budget')}
+                className="text-[9px] text-primary font-black uppercase tracking-widest px-4 py-2 bg-primary/15 border border-primary/25 rounded-2xl cursor-pointer hover:bg-primary/20 transition-all active:scale-95"
               >
-                Set One Now
+                Set Limits Now
               </button>
             </div>
           )}
         </div>
       </div>
 
+      {/* 6. Glowing Recent Activity list */}
+      <div className="mb-10">
+        <div className="flex justify-between items-center mb-6">
+          <div className="flex items-center gap-2">
+            <h3 className="text-lg font-extrabold text-white tracking-tight">Recent Activity</h3>
+            <span className="px-2 py-0.5 bg-white/5 rounded-full text-[9px] text-white/40 font-bold uppercase tracking-widest">Real-time</span>
+          </div>
+          <button 
+            onClick={() => navigate('/transactions')} 
+            className="text-[10px] text-primary font-black uppercase tracking-widest hover:text-white transition-colors" 
+          >
+            History Log
+          </button>
+        </div>
+        
+        <div className="space-y-4">
+          {recentTransactions.map((t, idx) => {
+            const Icon = categoryIcons[t.categoryId] || Activity;
+            const isCredit = t.type === 'CREDIT';
+            return (
+               <motion.div
+                 key={t.id}
+                 initial={{ x: 20, opacity: 0 }}
+                 animate={{ x: 0, opacity: 1 }}
+                 transition={{ delay: 0.1 + (idx * 0.05), type: "spring", stiffness: 300, damping: 30 }}
+                 className="flex items-center justify-between p-5 bg-gradient-to-r from-[#121217] to-[#0A0A0C] border border-white/5 hover:border-white/10 rounded-[2rem] group transition-all"
+               >
+                 <div className="flex items-center space-x-4">
+                   <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-md ${!isCredit ? 'bg-error/15 text-error border border-error/20' : 'bg-success/15 text-success border border-success/20'}`}>
+                     {!isCredit ? <ArrowUpRight size={18} /> : <ArrowDownLeft size={18} />}
+                   </div>
+                   <div>
+                     <p className="font-extrabold text-white text-sm tracking-tight mb-1 leading-none group-hover:text-primary transition-colors">
+                       {t.merchantName || categoryNames[t.categoryId] || t.categoryId}
+                     </p>
+                     <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest leading-none">
+                       {t.note ? (t.note.length > 25 ? t.note.substring(0, 25) + '...' : t.note) : new Date(t.dateTime).toLocaleDateString([], { month: 'short', day: 'numeric'})}
+                     </p>
+                   </div>
+                 </div>
+                 <div className="text-right shrink-0">
+                    <p className={`font-mono text-base font-black tracking-tight ${!isCredit ? 'text-white' : 'text-success'}`}>
+                      {!isCredit ? '-' : '+'}₹{t.amount.toLocaleString()}
+                    </p>
+                    <p className="text-[9px] text-white/20 font-bold uppercase tracking-widest">{new Date(t.dateTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
+                 </div>
+               </motion.div>
+            );
+          })}
+          {recentTransactions.length === 0 && (
+            <EmptyState 
+              title="No spending logged"
+              description="Add a transaction to see your spending activity."
+            />
+          )}
+        </div>
+      </div>
 
-      {/* Add Balance Modal */}
+      {/* 7. Add Balance Overlay Modal */}
       <AnimatePresence>
         {isAddBalanceOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -676,7 +753,7 @@ export default function DashboardScreen() {
               initial={{ scale: 0.9, y: 50, opacity: 0 }}
               animate={{ scale: 1, y: 0, opacity: 1 }}
               exit={{ scale: 0.9, y: 50, opacity: 0 }}
-              className="relative w-full max-w-md bg-surface border border-white/10 rounded-[32px] p-8 shadow-2xl overflow-hidden glass-card text-center"
+              className="relative w-full max-w-md bg-gradient-to-b from-[#121217] to-[#0A0A0C] border border-white/10 rounded-[32px] p-8 shadow-2xl overflow-hidden glass-card text-center"
             >
               <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 blur-[80px] rounded-full -z-10" />
               
@@ -684,14 +761,14 @@ export default function DashboardScreen() {
                 <Plus size={32} />
               </div>
               
-              <h3 className="text-2xl font-bold text-white mb-2">Add Balance</h3>
+              <h3 className="text-2xl font-bold text-white mb-2">Add Money</h3>
               <p className="text-gray-400 text-sm mb-6 leading-relaxed">
-                Add money to your available balance. This will create a dynamic Credit transaction in your database history.
+                Add funds directly to your wallet. This creates a secure Credit transaction in your local history logs.
               </p>
 
               <div className="space-y-4 mb-6">
                 <div className="relative">
-                  <span className="absolute left-5 top-1/2 -translate-y-1/2 text-2xl font-bold text-white/50">₹</span>
+                  <span className="absolute left-5 top-1/2 -translate-y-1/2 text-2xl font-extrabold text-white/40">₹</span>
                   <input 
                     type="number"
                     autoFocus
@@ -701,7 +778,7 @@ export default function DashboardScreen() {
                       if (addBalanceError) setAddBalanceError(null);
                     }}
                     placeholder="0"
-                    className="w-full h-16 bg-black/40 border border-white/10 rounded-2xl pl-12 pr-6 text-2xl font-bold text-white placeholder:text-white/20 outline-none focus:border-primary/50 transition-colors text-left"
+                    className="w-full h-16 bg-black/45 border border-white/10 rounded-2xl pl-12 pr-6 text-2xl font-mono font-black text-white placeholder:text-white/20 outline-none focus:border-primary/50 transition-colors text-left"
                   />
                 </div>
 
@@ -710,8 +787,8 @@ export default function DashboardScreen() {
                     type="text"
                     value={addBalanceNote}
                     onChange={(e) => setAddBalanceNote(e.target.value)}
-                    placeholder="Note (e.g. Gift, Refund, Cash)"
-                    className="w-full h-12 bg-black/40 border border-white/10 rounded-2xl px-5 text-white placeholder:text-white/30 outline-none focus:border-primary/50 transition-colors text-sm"
+                    placeholder="Note (e.g. Salary, Refund, Gift)"
+                    className="w-full h-12 bg-black/45 border border-white/10 rounded-2xl px-5 text-white placeholder:text-white/30 outline-none focus:border-primary/50 transition-colors text-sm font-semibold"
                   />
                 </div>
                 
@@ -756,7 +833,7 @@ export default function DashboardScreen() {
                 </button>
                 <button 
                   onClick={handleAddBalanceSubmit}
-                  className="flex-1 h-14 rounded-2xl bg-primary text-white font-semibold hover:bg-primary/95 shadow-lg shadow-primary/20 active:scale-95 transition-all cursor-pointer"
+                  className="flex-1 h-14 rounded-2xl bg-primary text-white font-semibold hover:bg-primary/90 shadow-lg shadow-primary/20 active:scale-95 transition-all cursor-pointer border border-white/10"
                 >
                   Confirm
                 </button>
@@ -766,66 +843,7 @@ export default function DashboardScreen() {
         )}
       </AnimatePresence>
 
-      {/* Recent Transactions List */}
-      <div className="mb-10">
-        <div className="flex justify-between items-center mb-6">
-          <div className="flex items-center gap-2">
-            <h3 className="text-xl title-bold !mb-0">Activity</h3>
-            <span className="px-2 py-0.5 bg-white/5 rounded-full text-[10px] text-white/40 font-bold uppercase tracking-widest">Recent</span>
-          </div>
-          <button 
-            onClick={() => navigate('/transactions')} 
-            className="text-[10px] text-primary font-black uppercase tracking-[0.2em] hover:text-white transition-colors" 
-            aria-label="View all transactions"
-          >
-            View All
-          </button>
-        </div>
-        
-        <div className="space-y-4">
-          {recentTransactions.map((t, idx) => {
-            const Icon = categoryIcons[t.categoryId] || Activity;
-            const isCredit = t.type === 'CREDIT';
-            return (
-               <motion.div
-                 key={t.id}
-                 initial={{ x: 20, opacity: 0 }}
-                 animate={{ x: 0, opacity: 1 }}
-                 transition={{ delay: 0.1 + (idx * 0.05), type: "spring", stiffness: 300, damping: 30 }}
-                 className="flex items-center justify-between p-5 glass-card rounded-[2rem] group"
-               >
-                 <div className="flex items-center space-x-4">
-                   <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-105 ${!isCredit ? 'bg-error/10 text-error' : 'bg-success/10 text-success'}`}>
-                     {!isCredit ? <ArrowUpRight size={20} /> : <ArrowDownLeft size={20} />}
-                   </div>
-                   <div>
-                     <p className="font-bold text-white text-sm tracking-tight mb-0.5 leading-none">
-                       {t.merchantName || categoryNames[t.categoryId] || t.categoryId}
-                     </p>
-                     <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest">
-                       {t.note ? (t.note.length > 20 ? t.note.substring(0, 20) + '...' : t.note) : new Date(t.dateTime).toLocaleDateString([], { month: 'short', day: 'numeric'})}
-                     </p>
-                   </div>
-                 </div>
-                 <div className="text-right">
-                    <p className={`font-display text-base font-bold ${!isCredit ? 'text-white' : 'text-success'}`}>
-                      {!isCredit ? '-' : '+'}₹{t.amount.toLocaleString()}
-                    </p>
-                    <p className="text-[9px] text-white/20 font-mono font-bold">{new Date(t.dateTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
-                 </div>
-               </motion.div>
-            );
-          })}
-          {recentTransactions.length === 0 && (
-            <EmptyState 
-              title="It's quiet here"
-              description="Add a transaction to see your spending activity."
-            />
-          )}
-        </div>
-      </div>
-
-      {/* Profile Menu Overlay */}
+      {/* 8. Profile Settings Modal Overlay */}
       <AnimatePresence>
         {isProfileMenuOpen && (
           <div className="fixed inset-0 z-[100] flex items-end justify-center sm:items-center p-4">
@@ -841,12 +859,12 @@ export default function DashboardScreen() {
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 300 }}
-              className="relative w-full max-w-md bg-surface border border-white/10 rounded-t-[32px] sm:rounded-[32px] p-6 shadow-2xl glass-card overflow-hidden"
+              className="relative w-full max-w-md bg-gradient-to-b from-[#121217] to-[#0A0A0C] border border-white/10 rounded-t-[32px] sm:rounded-[32px] p-6 shadow-2xl glass-card overflow-hidden"
             >
               <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 blur-[80px] rounded-full -z-10" />
               
               <div className="flex items-center gap-4 mb-8">
-                <div className="w-16 h-16 rounded-2xl bg-surface border border-white/10 flex items-center justify-center overflow-hidden glow-primary">
+                <div className="w-16 h-16 rounded-2xl bg-surface border border-white/10 flex items-center justify-center overflow-hidden glow-primary relative">
                   {user?.photoURL ? (
                     <img src={user.photoURL} alt="User Profile" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                   ) : (
@@ -855,17 +873,14 @@ export default function DashboardScreen() {
                 </div>
                 <div>
                   <h3 className="text-xl font-bold text-white tracking-wide">{user?.displayName || 'User'}</h3>
-                  <p className="text-sm text-gray-400">{user?.email || 'No email provided'}</p>
+                  <p className="text-sm text-gray-400">{user?.email || 'No email registered'}</p>
                 </div>
               </div>
 
               <div className="space-y-3">
                 <button
-                  onClick={() => {
-                    setIsProfileMenuOpen(false);
-                    // Open settings or navigate
-                  }}
-                  className="w-full flex items-center gap-4 p-4 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/5 transition-colors"
+                  onClick={() => setIsProfileMenuOpen(false)}
+                  className="w-full flex items-center gap-4 p-4 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/5 transition-colors text-left"
                 >
                   <div className="w-10 h-10 rounded-xl bg-primary/20 text-primary flex items-center justify-center">
                     <Settings size={20} />
@@ -878,7 +893,7 @@ export default function DashboardScreen() {
                     setIsProfileMenuOpen(false);
                     logout();
                   }}
-                  className="w-full flex items-center gap-4 p-4 rounded-2xl bg-white/5 hover:bg-error/10 border border-white/5 hover:border-error/20 transition-colors group"
+                  className="w-full flex items-center gap-4 p-4 rounded-2xl bg-white/5 hover:bg-error/10 border border-white/5 hover:border-error/20 transition-colors group text-left"
                 >
                   <div className="w-10 h-10 rounded-xl bg-error/20 text-error flex items-center justify-center group-hover:bg-error group-hover:text-white transition-colors">
                     <LogOut size={20} />
@@ -890,9 +905,9 @@ export default function DashboardScreen() {
               <div className="mt-8 text-center">
                 <button 
                   onClick={() => setIsProfileMenuOpen(false)}
-                  className="text-gray-500 font-bold uppercase tracking-widest text-xs hover:text-white transition-colors"
+                  className="text-gray-500 font-bold uppercase tracking-widest text-[10px] hover:text-white transition-colors"
                 >
-                  Close
+                  Close Panel
                 </button>
               </div>
             </motion.div>
@@ -900,7 +915,7 @@ export default function DashboardScreen() {
         )}
       </AnimatePresence>
 
-      {/* Floating Budget Alert Popup Modal */}
+      {/* 9. Predictive AI Budget Warning Modal */}
       <AnimatePresence>
         {isBudgetAlertOpen && (aiBudgetAlert || predictiveAlert) && (
           <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
@@ -951,7 +966,7 @@ export default function DashboardScreen() {
                     setIsBudgetAlertOpen(false);
                     navigate('/budget');
                   }}
-                  className="flex-1 h-14 rounded-2xl bg-error text-white font-semibold hover:bg-error/90 shadow-lg shadow-error/20 active:scale-95 transition-all cursor-pointer"
+                  className="flex-1 h-14 rounded-2xl bg-error text-white font-semibold hover:bg-error/90 shadow-lg shadow-error/20 active:scale-95 transition-all cursor-pointer border border-white/10"
                 >
                   Adjust Budget
                 </button>
