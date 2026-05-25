@@ -10,6 +10,8 @@ import clsx from 'clsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
+import { EmptyState } from '../../core/ui/EmptyState';
+
 const categoryIcons: Record<string, any> = {
   'food_dining': Coffee,
   'transportation': Car,
@@ -172,13 +174,10 @@ export default function TransactionsScreen() {
         )}
 
         {allTransactions.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-             <div className="w-24 h-24 glass rounded-[2rem] flex items-center justify-center mb-8">
-               <FileText size={40} className="text-white/20" />
-             </div>
-             <h3 className="text-xl font-bold text-white mb-2 tracking-tight">Empty Vault</h3>
-             <p className="text-white/40 text-xs font-medium uppercase tracking-widest leading-relaxed">No transactions detected yet.<br/>Start by adding one manually.</p>
-          </div>
+          <EmptyState 
+            title="Empty Vault"
+            description="No transactions detected yet. Start by adding one manually."
+          />
         ) : (
           <div className="space-y-4">
              <AnimatePresence>

@@ -9,6 +9,7 @@ import { TransactionType, BudgetPeriod } from '../../db/models';
 import { isSameMonth } from 'date-fns';
 import { insightsService } from '../insights/GeminiInsightsService';
 import { scoreCalculator } from '../money_score/MoneyScoreCalculator';
+import { EmptyState } from '../../core/ui/EmptyState';
 
 const categoryIcons: Record<string, any> = {
   'shopping': ShoppingBag,
@@ -816,17 +817,10 @@ export default function DashboardScreen() {
             );
           })}
           {recentTransactions.length === 0 && (
-            <motion.div
-                 initial={{ opacity: 0 }}
-                 animate={{ opacity: 1 }}
-                 className="flex flex-col items-center justify-center p-8 bg-surface/50 rounded-2xl border border-white/5 text-center"
-               >
-                 <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mb-4">
-                   <Coffee size={24} className="text-gray-500" aria-hidden="true" />
-                 </div>
-                 <p className="text-white font-semibold mb-1">It's quiet here</p>
-                 <p className="text-sm text-gray-400">Add a transaction to see your spending activity.</p>
-            </motion.div>
+            <EmptyState 
+              title="It's quiet here"
+              description="Add a transaction to see your spending activity."
+            />
           )}
         </div>
       </div>
