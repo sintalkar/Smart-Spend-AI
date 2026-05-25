@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from "@google/genai";
+import Groq from 'groq-sdk';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -67,6 +68,127 @@ async function startServer() {
           'User-Agent': 'aistudio-build',
         }
       }
+    });
+  };
+
+  // Groq client (lazy — returns null when key is absent)
+  const getGroq = () => {
+    const key = process.env.GROQ_API_KEY;
+    if (!key) return null;
+    return new Groq({ apiKey: key });
+  };
+
+  if (process.env.GROQ_API_KEY) {
+    console.log('[AI Engine] Groq API key found — using Groq as primary AI provider.');
+  } else {
+    console.warn('[AI Engine] GROQ_API_KEY not set — will use Gemini only.');
+  }
+
+  // Primary: Groq llama-3.3-70b, Fallback: Gemini (text endpoints only)
+  const executeAI = async (
+    prompt: string,
+    systemInstruction: string = '',
+    jsonMode: boolean = true
+  ): Promise<string> => {
+    const groq = getGroq();
+    if (groq) {
+      try {
+        const messages: Array<{ role: 'system' | 'user'; content: string }> = [];
+        if (systemInstruction) messages.push({ role: 'system', content: systemInstruction });
+        messages.push({ role: 'user', content: prompt });
+
+        const completion = await groq.chat.completions.create({
+          messages,
+          model: 'llama-3.3-70b-versatile',
+          temperature: 0,
+          max_tokens: 4096,
+          ...(jsonMode ? { response_format: { type: 'json_object' as const } } : {})
+        });
+        const text = completion.choices[0]?.message?.content ?? '';
+        if (text) {
+          console.log('[AI Engine] Groq responded successfully.');
+          return text;
+        }
+      } catch (err: any) {
+        console.warn('[AI Engine] Groq failed, falling back to Gemini:', err.message);
+      }
+    }
+
+    // Gemini fallback
+    const response = await callGeminiWithRetry(() => getAI().models.generateContent({
+      model: 'gemini-flash-lite-latest',
+      contents: prompt,
+      config: {
+        temperature: 0,
+        ...(systemInstruction ? { systemInstruction } : {}),
+        ...(jsonMode ? { responseMimeType: 'application/json' } : {})
+      }
+    }));
+    return response.text;
+  };
+
+  // Chat (history-aware): Groq for text, Gemini for file attachments
+  const executeChat = async (
+    message: string,
+    history: Array<{ role: string; text: string }> = [],
+    systemInstruction: string = '',
+    files?: Array<{ base64: string; mimeType: string }>
+  ): Promise<string> => {
+    const hasFiles = files && files.length > 0;
+
+    if (!hasFiles) {
+      const groq = getGroq();
+      if (groq) {
+        try {
+          const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [];
+          if (systemInstruction) messages.push({ role: 'system', content: systemInstruction });
+          history.forEach(h => {
+            messages.push({
+              role: h.role === 'model' ? 'assistant' : 'user',
+              content: h.text || ''
+            });
+          });
+          messages.push({ role: 'user', content: message });
+
+          const completion = await groq.chat.completions.create({
+            messages,
+            model: 'llama-3.3-70b-versatile',
+            temperature: 0.7,
+            max_tokens: 1024,
+          });
+          const text = completion.choices[0]?.message?.content ?? '';
+          if (text) return text;
+        } catch (err: any) {
+          console.warn('[AI Engine] Groq chat failed, falling back to Gemini:', err.message);
+        }
+      }
+    }
+
+    // Gemini fallback (also handles file attachments)
+    return await callGeminiWithRetry(async () => {
+      const chat = getAI().chats.create({
+        model: 'gemini-2.5-flash',
+        config: { systemInstruction },
+      });
+      if (history && history.length > 0) {
+        chat.history = history.map(h => ({
+          role: h.role === 'model' ? 'model' : 'user',
+          parts: [{ text: h.text || '' }]
+        }));
+      }
+      const msgContents: any[] = [];
+      if (hasFiles) {
+        files!.forEach(f => {
+          if (f.base64 && f.mimeType) {
+            msgContents.push({
+              inlineData: { data: f.base64.split(',')[1] || f.base64, mimeType: f.mimeType }
+            });
+          }
+        });
+      }
+      msgContents.push({ text: message });
+      const response = await chat.sendMessage({ message: msgContents });
+      return response.text;
     });
   };
 
@@ -256,16 +378,8 @@ async function startServer() {
       Resolve relative dates (yesterday, last Friday, 2 days ago, etc.) to actual timestamps based on Current Date.
       Default category is "other" if unsure.`;
 
-      const response = await callGeminiWithRetry(() => getAI().models.generateContent({
-        model: "gemini-flash-lite-latest",
-        contents: prompt,
-        config: {
-          temperature: 0,
-          responseMimeType: "application/json",
-        }
-      }));
-
-      res.json(parseAIJsonResponse(response.text));
+      const result = await executeAI(prompt, '', true);
+      res.json(parseAIJsonResponse(result));
     } catch (error: any) {
       console.warn("[Parse Error]", error?.message || "Unknown error");
       res.status(500).json({ error: "Failed to automatically parse. Please enter these details manually." });
@@ -402,16 +516,8 @@ async function startServer() {
         "motivational_message": "small encouraging message here"
       }`;
 
-      const response = await callGeminiWithRetry(() => getAI().models.generateContent({
-        model: "gemini-flash-lite-latest",
-        contents: prompt,
-        config: {
-          temperature: 0,
-          responseMimeType: "application/json",
-        }
-      }));
-
-      res.json(parseAIJsonResponse(response.text));
+      const result = await executeAI(prompt, '', true);
+      res.json(parseAIJsonResponse(result));
     } catch (error: any) {
       console.warn("[Insights Error]", error?.message || "Unknown error");
       res.status(500).json({ error: "Failed to generate insights." });
@@ -432,24 +538,14 @@ async function startServer() {
     }
 
     try {
-      const chat = getAI().chats.create({
-        model: "gemini-2.5-flash",
-        config: {
-          systemInstruction: `You are "Smart Spend Personal CA", a highly-qualified, direct, firm, and caring Chartered Accountant (CA) with deep expertise in Indian personal finance and taxation.
-          Tone is professional, bulleted, firm and direct. Under 250 words limit.`,
-        },
-      });
-
-      if (history && Array.isArray(history)) {
-        chat.history = history.map(h => ({
-          role: h.role === 'model' ? 'model' : 'user',
-          parts: [{ text: h.text || '' }]
-        }));
-      }
-
+      const caSystemInstruction = `You are "Smart Spend Personal CA", a highly-qualified, direct, firm, and caring Chartered Accountant (CA) with deep expertise in Indian personal finance and taxation.
+          Tone is professional, bulleted, firm and direct. Under 250 words limit.`;
+      const geminiHistory = history && Array.isArray(history)
+        ? history.map((h: any) => ({ role: h.role === 'model' ? 'model' : 'user', text: h.text || '' }))
+        : [];
       const fullMessage = `${context ? `Context: ${JSON.stringify(context)}\n\n` : ''}Message: ${message}`;
-      const response = await callGeminiWithRetry(() => chat.sendMessage({ message: fullMessage }));
-      res.json({ text: response.text });
+      const text = await executeChat(fullMessage, geminiHistory, caSystemInstruction);
+      res.json({ text });
     } catch (error: any) {
       console.warn("[CA Assistant Error]", error?.message || "Unknown error");
       res.status(500).json({ error: "Failed to process assistant chat message." });
@@ -494,15 +590,8 @@ async function startServer() {
     const { message } = req.body;
 
     try {
-      const chat = getAI().chats.create({
-        model: "gemini-flash-lite-latest",
-        config: {
-          systemInstruction: `You are "Smart Spend Admin", the powerful and secure administrative AI controller for the Smart Spend application...`,
-        },
-      });
-
-      const response = await chat.sendMessage({ message });
-      res.json({ text: response.text });
+      const text = await executeChat(message, [], `You are "Smart Spend Admin", the powerful and secure administrative AI controller for the Smart Spend application...`);
+      res.json({ text });
     } catch (error: any) {
       console.warn("[Admin AI Error]", error?.message || "Unknown error");
       res.json({ text: "I'm having trouble connecting to the administration AI right now. Please try again in a moment." });
@@ -602,16 +691,8 @@ async function startServer() {
       - Currency should match user's locale (default ₹ INR for Indian users).
       - All suggestions must be realistic and implementable immediately.`;
 
-      const response = await getAI().models.generateContent({
-        model: "gemini-flash-lite-latest",
-        contents: prompt,
-        config: {
-          temperature: 0,
-          responseMimeType: "application/json",
-        }
-      });
-
-      res.json(parseAIJsonResponse(response.text));
+      const result = await executeAI(prompt, '', true);
+      res.json(parseAIJsonResponse(result));
     } catch (error: any) {
       console.warn("[Insights Error]", error?.message || "Unknown error");
       // Provide generic fallback if AI fails to match the new schema
@@ -673,16 +754,8 @@ async function startServer() {
       Resolve relative dates (yesterday, last Friday, 2 days ago, etc.) to actual timestamps based on Current Date.
       Default category is "other" if unsure.`;
 
-      const response = await callGeminiWithRetry(() => getAI().models.generateContent({
-        model: "gemini-flash-lite-latest",
-        contents: prompt,
-        config: {
-          temperature: 0,
-          responseMimeType: "application/json",
-        }
-      }));
-
-      res.json(parseAIJsonResponse(response.text));
+      const result = await executeAI(prompt, '', true);
+      res.json(parseAIJsonResponse(result));
     } catch (error: any) {
       console.warn("[Parse Error]", error?.message || "Unknown error");
       res.json({ error: "Failed to automatically parse. Please enter these details manually." });
@@ -714,16 +787,8 @@ async function startServer() {
       
       Output format: JSON array of objects.`;
 
-      const response = await callGeminiWithRetry(() => getAI().models.generateContent({
-        model: "gemini-flash-lite-latest",
-        contents: prompt,
-        config: {
-          temperature: 0,
-          responseMimeType: "application/json",
-        }
-      }));
-
-      res.json(parseAIJsonResponse(response.text));
+      const result = await executeAI(prompt, '', true);
+      res.json(parseAIJsonResponse(result));
     } catch (error: any) {
       console.warn("[Score Tips Error]", error?.message || "Unknown error");
       // Provide generic useful tips as fallback if AI fails due to high demand or other errors
@@ -766,23 +831,9 @@ async function startServer() {
       Status: Balance ₹${totalBalance}, Spent this month ₹${monthlySpent} out of ₹${budgetLimit} budget.
       Keep it under 15 words. Be encouraging but honest. Use Indian slang sparsely if it fits.`;
 
-      const response = await callGeminiWithRetry(() => getAI().models.generateContent({
-        model: "gemini-flash-lite-latest",
-        contents: prompt,
-      }));
-
-      res.json({ greeting: response.text });
+      const greeting = await executeAI(prompt, '', false);
+      res.json({ greeting: greeting.trim() });
     } catch (error: any) {
-      // Check for 429 Quota Exceeded or 503 Unavailable
-      const isQuotaOrUnavailable =
-        error?.status === 429 || error?.message?.includes('429') || error?.message?.includes('quota') ||
-        error?.status === 503 || error?.message?.includes('503') || error?.message?.includes('UNAVAILABLE');
-
-      if (isQuotaOrUnavailable) {
-        console.warn("--> Gemini Quota exceeded/Unavailable. Using fallback greeting.");
-        return res.json({ greeting: `Hi ${userName}, tracking your spends like a pro! 🚀` });
-      }
-
       console.warn("--> Greet route info:", error?.message || error);
       res.json({ greeting: `Hi ${userName}, let's track your spends today!` });
     }
@@ -854,17 +905,8 @@ async function startServer() {
       
       Return ONLY a JSON object: {"categoryId": "string", "confidence": number, "reason": "brief string"}`;
 
-      const response = await callGeminiWithRetry(() => getAI().models.generateContent({
-        model: "gemini-flash-lite-latest",
-        contents: prompt,
-        config: {
-          temperature: 0,
-          systemInstruction: "You are a specialized categorization engine. Return JSON only.",
-          responseMimeType: "application/json",
-        }
-      }));
-
-      res.json(parseAIJsonResponse(response.text));
+      const result = await executeAI(prompt, 'You are a specialized categorization engine. Return JSON only.', true);
+      res.json(parseAIJsonResponse(result));
     } catch (error) {
       res.status(500).json({ categoryId: "other", confidence: 0 });
     }
@@ -902,15 +944,8 @@ async function startServer() {
       3. Give 2 actionable, non-generic pieces of advice to finish the month under budget.
       Keep it brief (max 3 sentences).`;
 
-      const response = await callGeminiWithRetry(() => getAI().models.generateContent({
-        model: "gemini-flash-lite-latest",
-        contents: prompt,
-        config: {
-          systemInstruction: "You are a proactive financial advisor. Be direct, helpful, and culturally relevant to India.",
-        }
-      }));
-
-      res.json({ alert: response.text });
+      const alert = await executeAI(prompt, 'You are a proactive financial advisor. Be direct, helpful, and culturally relevant to India.', false);
+      res.json({ alert: alert.trim() });
     } catch (error) {
       console.warn("[Budget Alert Error]", error);
       res.json({ alert: "Keep an eye on your spending to stay within your budget!" });
@@ -922,10 +957,7 @@ async function startServer() {
     const { message, files } = req.body;
 
     try {
-      const chat = getAI().chats.create({
-        model: "gemini-2.5-flash",
-        config: {
-          systemInstruction: `You are "Smart Spend Personal CA", a highly-qualified, direct, firm, and caring Chartered Accountant (CA) with deep expertise in Indian personal finance and taxation.
+      const assistantSystemInstruction = `You are "Smart Spend Personal CA", a highly-qualified, direct, firm, and caring Chartered Accountant (CA) with deep expertise in Indian personal finance and taxation.
 
 IDENTITY & TONE:
 - You advise exactly like an expert Indian CA. You are firm, direct, and caring.
@@ -1089,26 +1121,14 @@ Monthly Income: ₹[amount]
 Risk Profile: [conservative/balanced/aggressive]
 Uploaded files: [list of files]
 Extracted text from bills: [raw text/OCR]
-Request: [scan request]`,
-        },
-      });
+Request: [scan request]`;
 
-      const msgContents: any[] = [{ text: message }];
-      if (files && Array.isArray(files)) {
-        files.forEach((f: any) => {
-          if (f.base64 && f.mimeType) {
-            msgContents.push({
-              inlineData: {
-                data: f.base64.split(',')[1] || f.base64,
-                mimeType: f.mimeType
-              }
-            });
-          }
-        });
-      }
+      const fileAttachments = files && Array.isArray(files)
+        ? files.filter((f: any) => f.base64 && f.mimeType).map((f: any) => ({ base64: f.base64, mimeType: f.mimeType }))
+        : [];
 
-      const response = await callGeminiWithRetry(() => chat.sendMessage({ message: msgContents }));
-      res.json({ text: response.text });
+      const text = await executeChat(message, [], assistantSystemInstruction, fileAttachments.length > 0 ? fileAttachments : undefined);
+      res.json({ text });
     } catch (error: any) {
       console.warn("[Assistant Error]", error?.message || "Unknown error");
       res.json({ text: "I'm having trouble thinking right now. Could you please ask me again in a moment?" });

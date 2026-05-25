@@ -1,4 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk';
+import Groq from 'groq-sdk';
 import { GoogleGenAI } from '@google/genai';
 import Expense from '../models/Expense.js';
 import Budget from '../models/Budget.js';
@@ -24,10 +24,10 @@ const getGeminiClient = () => {
   return new GoogleGenAI({ apiKey: key });
 };
 
-const getClaudeClient = () => {
-  const key = process.env.ANTHROPIC_API_KEY;
+const getGroqClient = () => {
+  const key = process.env.GROQ_API_KEY;
   if (!key) return null;
-  return new Anthropic({ apiKey: key });
+  return new Groq({ apiKey: key });
 };
 
 // Global rate limiter mutex queue to prevent 429 quota exhaustion
@@ -71,39 +71,47 @@ class PacedQueue {
 
 const apiQueue = new PacedQueue();
 
-// Execute wrapper with fallback (Claude -> Gemini -> Fallback JSON)
+// Execute wrapper with fallback (Groq -> Gemini)
 const executeAI = async (prompt, systemInstruction, imageBuffer = null, mimeType = null) => {
-  const claude = getClaudeClient();
+  const groq = getGroqClient();
   const gemini = getGeminiClient();
 
-  if (!claude && !gemini) {
-    throw new Error("No configured AI credentials (ANTHROPIC_API_KEY or GEMINI_API_KEY) found on the backend.");
+  if (!groq && !gemini) {
+    throw new Error("No configured AI credentials (GROQ_API_KEY or GEMINI_API_KEY) found on the backend.");
   }
 
   return await apiQueue.enqueue(async () => {
-    // Attempt Claude first if key is present and no image is attached (as Claude API differs slightly for images)
-    if (claude && !imageBuffer) {
+    // Attempt Groq first for text-only requests
+    if (groq && !imageBuffer) {
       try {
-        console.log("[AI Engine] Querying Claude API...");
-        const response = await claude.messages.create({
-          model: "claude-3-5-sonnet-20241022",
-          max_tokens: 3000,
+        console.log("[AI Engine] Querying Groq API...");
+        const messages = [];
+        if (systemInstruction) messages.push({ role: 'system', content: systemInstruction });
+        messages.push({ role: 'user', content: prompt });
+
+        const completion = await groq.chat.completions.create({
+          messages,
+          model: 'llama-3.3-70b-versatile',
           temperature: 0,
-          system: systemInstruction,
-          messages: [{ role: "user", content: prompt }]
+          max_tokens: 4096,
+          response_format: { type: 'json_object' }
         });
-        return response.content[0].text;
+        const text = completion.choices[0]?.message?.content ?? '';
+        if (text) {
+          console.log("[AI Engine] Groq responded successfully.");
+          return text;
+        }
       } catch (err) {
-        console.warn("[AI Engine] Claude API error, falling back to Gemini:", err.message);
+        console.warn("[AI Engine] Groq API error, falling back to Gemini:", err.message);
       }
     }
 
-    // Fallback or Direct to Gemini
+    // Fallback or Direct to Gemini (handles images too)
     if (gemini) {
       try {
         console.log("[AI Engine] Querying Gemini API...");
         const modelName = imageBuffer ? "gemini-2.5-flash" : "gemini-flash-lite-latest";
-        
+
         const contents = [];
         if (imageBuffer && mimeType) {
           contents.push({
@@ -478,13 +486,15 @@ Limit to the top 3 most impactful spending cuts. Be specific and realistic.`;
 
 // 6. CA Direct Chatbot Assistant
 export const chatWithCharteredAccountant = async (message, chatHistory = [], files = []) => {
+  const groq = getGroqClient();
   const gemini = getGeminiClient();
-  if (!gemini) {
-    return { text: "I'm having trouble thinking right now. Please set a valid GEMINI_API_KEY to consult your CA assistant." };
+
+  if (!groq && !gemini) {
+    return { text: "I'm having trouble thinking right now. Please set a valid GROQ_API_KEY or GEMINI_API_KEY to consult your CA assistant." };
   }
 
   const systemInstruction = `You are "Smart Spend Personal CA", a highly-qualified, firm, caring Chartered Accountant (CA) with deep expertise in Indian personal finance, income tax slabs, mutual fund SIP returns, and wealth preservation.
-  
+
   Identity guidelines:
   - Advise exactly like a veteran Indian CA. You are firm, direct, and protective of the user's hard-earned money.
   - Never give generic advice. Be extremely precise.
@@ -492,8 +502,41 @@ export const chatWithCharteredAccountant = async (message, chatHistory = [], fil
   - Keep comments under 220 words. Use bullet points and bold highlights for critical tips.
   - Indian tax contexts (New vs Old tax slabs, 80C, 80D, LTCG/STCG, tax saving SIPs, digital gold, emergency funds) are your second nature.`;
 
+  const hasFiles = files && Array.isArray(files) && files.some(f => f.base64 && f.mimeType);
+
+  // Try Groq first for text-only conversations
+  if (groq && !hasFiles) {
+    try {
+      const messages = [{ role: 'system', content: systemInstruction }];
+      chatHistory
+        .filter(turn => turn.role && turn.text)
+        .forEach(turn => {
+          messages.push({
+            role: turn.role === 'assistant' ? 'assistant' : 'user',
+            content: turn.text
+          });
+        });
+      messages.push({ role: 'user', content: message });
+
+      const completion = await groq.chat.completions.create({
+        messages,
+        model: 'llama-3.3-70b-versatile',
+        temperature: 0.7,
+        max_tokens: 1024,
+      });
+      const text = completion.choices[0]?.message?.content ?? '';
+      if (text) return { text };
+    } catch (err) {
+      console.warn("[AI Engine] Groq CA chat failed, falling back to Gemini:", err.message);
+    }
+  }
+
+  // Gemini fallback (also handles file attachments)
+  if (!gemini) {
+    return { text: "I apologize, but my consulting lines are busy right now. Please try again in a moment." };
+  }
+
   try {
-    // Map prior turns into the format Gemini expects so the assistant retains context
     const history = chatHistory
       .filter(turn => turn.role && turn.text)
       .map(turn => ({
@@ -508,7 +551,7 @@ export const chatWithCharteredAccountant = async (message, chatHistory = [], fil
     });
 
     const msgContents = [];
-    if (files && Array.isArray(files)) {
+    if (hasFiles) {
       files.forEach(f => {
         if (f.base64 && f.mimeType) {
           msgContents.push({
