@@ -530,7 +530,7 @@ export default function AddExpenseScreen() {
             </AnimatePresence>
           </div>
 
-          <div className="fixed bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-background via-background to-transparent z-40">
+          <div className="fixed bottom-0 left-0 right-0 pb-28 pt-6 px-6 bg-gradient-to-t from-background via-background/95 to-transparent z-40">
             <button 
               type="submit" 
               className="w-full max-w-2xl mx-auto flex items-center justify-center gap-2 bg-primary text-white font-black uppercase tracking-[0.2em] text-sm p-6 rounded-[2rem] shadow-2xl shadow-primary/40 hover:scale-[1.02] active:scale-[0.98] transition-all relative overflow-hidden group"
