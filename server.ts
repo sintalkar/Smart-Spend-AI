@@ -1138,7 +1138,16 @@ Request: [scan request]`;
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      // In this embedded dev environment, Vite's default HMR websocket port can
+      // collide with stale sessions. Use a dedicated explicit port instead.
+      server: {
+        middlewareMode: true,
+        hmr: {
+          host: 'localhost',
+          port: 24679,
+          clientPort: 24679,
+        },
+      },
       appType: "spa",
     });
     app.use(vite.middlewares);

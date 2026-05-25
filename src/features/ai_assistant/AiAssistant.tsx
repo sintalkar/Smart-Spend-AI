@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MessageSquare, X, Send, Bot, Paperclip } from 'lucide-react';
 import clsx from 'clsx';
@@ -6,8 +6,14 @@ import { hapticFeedback } from '../../core/utils/haptics';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../db';
 
-export function AiAssistant() {
-  const [isOpen, setIsOpen] = useState(false);
+type AiAssistantProps = {
+  forceOpen?: boolean;
+  onOpenChange?: (isOpen: boolean) => void;
+  hideLauncher?: boolean;
+};
+
+export function AiAssistant({ forceOpen, onOpenChange, hideLauncher = false }: AiAssistantProps) {
+  const [isOpen, setIsOpen] = useState(Boolean(forceOpen));
   const [messages, setMessages] = useState<{ role: 'user' | 'ai', text: string }[]>([
     { role: 'ai', text: 'Namaste! I am your Smart Spend Personal CA. Let me review your books. How can I help you optimize your budget, savings, or investments today? You can also upload bank statements, credit card PDFs, or receipt photos for a comprehensive analysis!' }
   ]);
@@ -18,6 +24,15 @@ export function AiAssistant() {
 
   const transactions = useLiveQuery(() => db.transactions.where('isDeleted').equals(0).toArray()) || [];
   const budgets = useLiveQuery(() => db.budgets.toArray()) || [];
+
+  useEffect(() => {
+    if (forceOpen === undefined) return;
+    setIsOpen(forceOpen);
+  }, [forceOpen]);
+
+  useEffect(() => {
+    onOpenChange?.(isOpen);
+  }, [isOpen, onOpenChange]);
 
   const financialContext = useMemo(() => {
     const now = new Date();
@@ -118,12 +133,14 @@ Global Budget Limit: ₹${budgetLimit}
 
   return (
     <>
-      <button 
-        onClick={() => setIsOpen(true)}
-        className="fixed bottom-24 right-6 w-14 h-14 bg-primary text-white rounded-full flex items-center justify-center shadow-lg z-40 transition-all hover:scale-105"
-      >
-        <Bot size={24} />
-      </button>
+      {!hideLauncher && (
+        <button 
+          onClick={() => setIsOpen(true)}
+          className="fixed bottom-24 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-white shadow-lg transition-all hover:scale-105"
+        >
+          <Bot size={24} />
+        </button>
+      )}
 
       <AnimatePresence>
         {isOpen && (

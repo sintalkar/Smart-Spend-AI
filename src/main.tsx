@@ -31,8 +31,8 @@ window.addEventListener('beforeinstallprompt', (e) => {
   window.dispatchEvent(new CustomEvent('pwa-install-prompt-available'));
 });
 
-// Explicit Service Worker Registration
-if ('serviceWorker' in navigator) {
+// Only register the generated service worker in production builds.
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js', { scope: '/' })
       .then((reg) => console.log('[PWA] Service Worker registered successfully scope:', reg.scope))

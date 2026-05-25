@@ -51,7 +51,7 @@ export default function LandingPage() {
           {/* Desktop Nav Links */}
           <div className="hidden md:flex items-center gap-8 text-sm font-semibold text-gray-400">
             <a href="#features" className="hover:text-white transition-colors">Features</a>
-            <a href="#demo" className="hover:text-white transition-colors">Interactive Demo</a>
+            <a href="#preview" className="hover:text-white transition-colors">Product Preview</a>
             <a href="#security" className="hover:text-white transition-colors">Security</a>
             <a href="#pricing" className="hover:text-white transition-colors">Pricing</a>
           </div>
@@ -84,7 +84,7 @@ export default function LandingPage() {
               className="absolute top-full left-0 right-0 bg-[#0A0A0C] border-b border-white/5 p-6 flex flex-col gap-6 md:hidden z-50 shadow-2xl"
             >
               <a href="#features" onClick={() => setMobileMenuOpen(false)} className="text-gray-300 font-semibold text-lg">Features</a>
-              <a href="#demo" onClick={() => setMobileMenuOpen(false)} className="text-gray-300 font-semibold text-lg">Interactive Demo</a>
+              <a href="#preview" onClick={() => setMobileMenuOpen(false)} className="text-gray-300 font-semibold text-lg">Product Preview</a>
               <a href="#security" onClick={() => setMobileMenuOpen(false)} className="text-gray-300 font-semibold text-lg">Security</a>
               <a href="#pricing" onClick={() => setMobileMenuOpen(false)} className="text-gray-300 font-semibold text-lg">Pricing</a>
               
@@ -130,15 +130,15 @@ export default function LandingPage() {
               onClick={handleLaunchApp}
               className="w-full sm:w-auto px-8 py-4 bg-primary text-white font-black rounded-2xl shadow-xl shadow-primary/20 active:scale-95 transition-all hover:bg-primary-light flex items-center justify-center gap-2 cursor-pointer border border-white/10"
             >
-              <span>Get Started Free</span>
+              <span>Open SmartSpend</span>
               <ArrowRight size={18} />
             </button>
             <a 
-              href="#demo"
+              href="#preview"
               className="w-full sm:w-auto px-8 py-4 bg-white/5 border border-white/10 rounded-2xl text-gray-300 font-bold hover:bg-white/10 active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
               <Play size={16} fill="currentColor" />
-              <span>Watch Live Demo</span>
+              <span>Explore Product Preview</span>
             </a>
           </div>
         </motion.div>
@@ -283,23 +283,23 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* 4. Interactive Showcase Tabs */}
-      <section id="demo" className="py-24 px-6 bg-[#0E0E12] border-y border-white/5">
+      {/* 4. Product Preview Tabs */}
+      <section id="preview" className="py-24 px-6 bg-[#0E0E12] border-y border-white/5">
         <div className="max-w-7xl mx-auto">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <div className="space-y-6">
-              <h2 className="text-xs font-black uppercase tracking-[0.25em] text-primary">Interactive Demo</h2>
-              <h3 className="text-3xl md:text-5xl font-extrabold tracking-tight">Explore the interface in real-time.</h3>
+              <h2 className="text-xs font-black uppercase tracking-[0.25em] text-primary">Product Preview</h2>
+              <h3 className="text-3xl md:text-5xl font-extrabold tracking-tight">Explore the platform experience in real time.</h3>
               <p className="text-gray-400 text-base leading-relaxed">
-                Click the pillars below to experience the beautiful visual representation of the core tracking system.
+                Explore the key workflows below to understand how SmartSpend surfaces insights, automation, and receipt intelligence.
               </p>
 
               {/* Tabs list */}
               <div className="space-y-4 pt-4">
                 {[
-                  { id: 'insights', title: 'Interactive AI Insights', desc: 'Predictive alert monitors and Swiggy/Zomato limit controllers.' },
+                  { id: 'insights', title: 'AI Insight Engine', desc: 'Predictive alerts, category monitoring, and budget protection workflows.' },
                   { id: 'automation', title: 'SMS Transaction Tracker', desc: 'Android background listener alerts parsing UPI and credit cards.' },
-                  { id: 'scanner', title: 'Full Receipt Scanner', desc: 'Auto-math validation, currency mapping, and split reports.' }
+                  { id: 'scanner', title: 'Receipt Intelligence', desc: 'OCR extraction, line-item validation, and expense-ready categorization.' }
                 ].map(tab => (
                   <div 
                     key={tab.id}
@@ -527,7 +527,7 @@ export default function LandingPage() {
               onClick={handleLaunchApp}
               className="mt-8 w-full py-4 bg-white/5 hover:bg-white/10 text-white font-bold rounded-2xl active:scale-95 transition-all text-sm border border-white/10"
             >
-              Get Started Free
+              Get Started
             </button>
           </div>
 

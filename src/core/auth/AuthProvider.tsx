@@ -13,10 +13,10 @@ interface AuthContextType {
   logout: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextType>({ 
-  user: null, 
-  loading: true, 
-  logout: async () => {} 
+const AuthContext = createContext<AuthContextType>({
+  user: null,
+  loading: true,
+  logout: async () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -25,18 +25,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
+  useEffect(() => {
+    localStorage.removeItem('smartspend_demo_auth');
+  }, []);
+
   const logout = async () => {
     try {
       syncService.stopSync();
-      // Sign out first — if it fails, local data is preserved so the user can retry
       await auth.signOut();
       await db.clearAllData();
-      // Clear all localStorage keys set by this app
       localStorage.removeItem('initial_balance');
       localStorage.removeItem('ai_greeting_cache');
-      console.log("[AuthProvider] User signed out and local data cleared");
+      console.log('[AuthProvider] User signed out and local data cleared');
     } catch (error) {
-      console.error("[AuthProvider] Sign out error:", error);
+      console.error('[AuthProvider] Sign out error:', error);
     }
   };
 
@@ -47,55 +49,61 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (u) {
             console.log(`[AuthProvider] User logged in: ${u.uid} (${u.email})`);
             const userDocPath = `users/${u.uid}`;
-            
+
             try {
               const userDocRef = doc(firestoreDb, userDocPath);
-              await setDoc(userDocRef, {
-                uid: u.uid,
-                email: u.email,
-                displayName: u.displayName,
-                photoURL: u.photoURL,
-                emailVerified: u.emailVerified,
-                lastLogin: serverTimestamp()
-              }, { merge: true });
+              await setDoc(
+                userDocRef,
+                {
+                  uid: u.uid,
+                  email: u.email,
+                  displayName: u.displayName,
+                  photoURL: u.photoURL,
+                  emailVerified: u.emailVerified,
+                  lastLogin: serverTimestamp(),
+                },
+                { merge: true }
+              );
             } catch (error: any) {
               console.error(`[AuthProvider] Failed to write to ${userDocPath}`, error);
-              try { handleFirestoreError(error, OperationType.WRITE, userDocPath); } catch (e) {}
+              try {
+                handleFirestoreError(error, OperationType.WRITE, userDocPath);
+              } catch {}
             }
-            
-            // Start cloud sync
+
             syncService.startSync();
+          } else {
+            syncService.stopSync();
           }
+
           setUser(u);
           setLoading(false);
         } catch (err) {
-          console.error("[AuthProvider] Unhandled error in auth state change:", err);
+          console.error('[AuthProvider] Unhandled error in auth state change:', err);
           setLoading(false);
         }
       };
 
-      handleAuthState().catch(err => {
-        console.error("[AuthProvider] Critical unhandled promise rejection:", err);
+      handleAuthState().catch((err) => {
+        console.error('[AuthProvider] Critical unhandled promise rejection:', err);
         setLoading(false);
       });
     });
-    
+
     return () => unsubscribe();
   }, []);
 
   if (loading) {
-    return <div className="flex-1 min-h-screen bg-background flex items-center justify-center">
-            <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin"></div>
-           </div>;
+    return (
+      <div className="flex min-h-screen flex-1 items-center justify-center bg-background">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
+      </div>
+    );
   }
 
   if (!user) {
     return <AuthScreen />;
   }
 
-  return (
-    <AuthContext.Provider value={{ user, loading, logout }}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={{ user, loading, logout }}>{children}</AuthContext.Provider>;
 }

@@ -73,6 +73,10 @@ class AdminService {
   // ─── Real-time Firestore listeners (run for every connected client) ────────
 
   private initListeners() {
+    const logListenerError = (label: string, err: { code?: string }) => {
+      if (err?.code === 'permission-denied') return;
+      console.warn(`[AdminService] ${label} listener error:`, err.code);
+    };
     // Feature flags — every user session gets instant updates when admin changes a toggle
     onSnapshot(
       doc(firestoreDb, 'config', 'features'),
@@ -82,7 +86,7 @@ class AdminService {
           this.toggleSubscribers.forEach(fn => fn());
         }
       },
-      (err) => console.warn('[AdminService] features listener error:', err.code)
+      (err) => logListenerError('features', err)
     );
 
     // Announcement banner — all users see new banners immediately
@@ -96,7 +100,7 @@ class AdminService {
           this.announcementSubscribers.forEach(fn => fn());
         }
       },
-      (err) => console.warn('[AdminService] announcement listener error:', err.code)
+      (err) => logListenerError('announcement', err)
     );
   }
 

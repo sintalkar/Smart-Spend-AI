@@ -1,6 +1,21 @@
 import { useState, useEffect, useRef } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { Home, ListOrdered, Plus, PieChart, Target, Mic, Camera, Edit3, X, Coins, AlertCircle } from 'lucide-react';
+import {
+  Home,
+  ListOrdered,
+  Plus,
+  PieChart,
+  Target,
+  Mic,
+  Camera,
+  Edit3,
+  X,
+  Coins,
+  AlertCircle,
+  Shield,
+  Wallet,
+  Bell,
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import clsx from 'clsx';
 import { VoiceEntryBottomSheet } from '../../features/add_expense/VoiceEntryBottomSheet';
@@ -14,11 +29,34 @@ import { AiAssistant } from '../../features/ai_assistant/AiAssistant';
 import { AnnouncementBanner } from './AnnouncementBanner';
 import { MaintenanceScreen } from './MaintenanceScreen';
 
+type NavItem = {
+  path: string;
+  icon: typeof Home;
+  label: string;
+};
+
+const desktopNavItems: NavItem[] = [
+  { path: '/', icon: Home, label: 'Dashboard' },
+  { path: '/transactions', icon: ListOrdered, label: 'Transactions' },
+  { path: '/insights', icon: PieChart, label: 'Insights' },
+  { path: '/score', icon: Shield, label: 'Money Score' },
+  { path: '/goals', icon: Target, label: 'Goals' },
+  { path: '/budget', icon: Wallet, label: 'Budget' },
+];
+
+const mobileNavItems: NavItem[] = [
+  { path: '/', icon: Home, label: 'Home' },
+  { path: '/transactions', icon: ListOrdered, label: 'History' },
+  { path: '/insights', icon: PieChart, label: 'Insights' },
+  { path: '/goals', icon: Target, label: 'Goals' },
+];
+
 export function Layout() {
   const location = useLocation();
   const [isFabOpen, setIsFabOpen] = useState(false);
   const [isVoiceSheetOpen, setIsVoiceSheetOpen] = useState(false);
   const [isReceiptScannerOpen, setIsReceiptScannerOpen] = useState(false);
+  const [isAiOpen, setIsAiOpen] = useState(false);
   const [toggles, setToggles] = useState<AdminFeatureToggles>(adminService.getToggles());
   const openedOnce = useRef(false);
 
@@ -31,7 +69,6 @@ export function Layout() {
     return stored ? Number(stored) : null;
   });
 
-  // Live sync: admin feature toggle changes arrive via Firestore onSnapshot
   useEffect(() => {
     return adminService.subscribe(() => {
       setToggles(adminService.getToggles());
@@ -51,15 +88,15 @@ export function Layout() {
   const handleFabClick = (onClickAction: () => void) => {
     if (initialBalance === null) {
       setIsBalanceModalOpen(true);
-    } else {
-      onClickAction();
+      return;
     }
+    onClickAction();
   };
 
   const handleSetBalance = async () => {
     const val = Number(balanceInput);
     if (!balanceInput || isNaN(val) || val <= 0) {
-      setBalanceError("Please enter a valid positive balance");
+      setBalanceError('Please enter a valid positive balance');
       return;
     }
 
@@ -76,7 +113,7 @@ export function Layout() {
       }
     } catch (e) {
       console.error(e);
-      setBalanceError("Failed to set starting balance. Please try again.");
+      setBalanceError('Failed to set starting balance. Please try again.');
     }
   };
 
@@ -87,40 +124,127 @@ export function Layout() {
     }
   }, []);
 
-  const navItems = [
-    { path: '/', icon: Home, label: 'Home' },
-    { path: '/transactions', icon: ListOrdered, label: 'History' },
-    { isFab() { return true; }, path: '#', icon: Plus, label: '' },
-    { path: '/insights', icon: PieChart, label: 'Insights' },
-    { path: '/goals', icon: Target, label: 'Goals' },
-  ];
-
-  const fabOptions = [
-    { icon: Edit3, label: 'Manual Entry', color: 'bg-primary',  onClick: () => { adminService.logEvent('MANUAL_ENTRY');      window.location.href = '/add'; }, enabled: true },
-    { icon: Mic,    label: 'Voice',        color: 'bg-secondary', onClick: () => { adminService.logEvent('VOICE_ENTRY_USED'); setIsVoiceSheetOpen(true); },    enabled: toggles.voiceEntry },
-    { icon: Camera, label: 'Receipt',      color: 'bg-blue-500', onClick: () => { adminService.logEvent('RECEIPT_SCANNED');  setIsReceiptScannerOpen(true); }, enabled: toggles.receiptScanner },
-  ];
-
-  // Close FAB when navigating
   useEffect(() => {
     setIsFabOpen(false);
   }, [location.pathname]);
 
-  // Show maintenance screen instantly when admin toggles it on
+  const fabOptions = [
+    { icon: Edit3, label: 'Manual', onClick: () => { adminService.logEvent('MANUAL_ENTRY'); window.location.href = '/add'; }, enabled: true },
+    { icon: Mic, label: 'Voice', onClick: () => { adminService.logEvent('VOICE_ENTRY_USED'); setIsVoiceSheetOpen(true); }, enabled: toggles.voiceEntry },
+    { icon: Camera, label: 'Receipt', onClick: () => { adminService.logEvent('RECEIPT_SCANNED'); setIsReceiptScannerOpen(true); }, enabled: toggles.receiptScanner },
+  ];
+
   if (toggles.maintenanceMode) {
     return <MaintenanceScreen message={toggles.maintenanceMessage} />;
   }
 
+  const currentPath = location.pathname === '/' ? '/' : `/${location.pathname.split('/')[1]}`;
+  const userInitials =
+    user?.displayName
+      ?.split(' ')
+      .map(part => part[0])
+      .join('')
+      .slice(0, 2)
+      .toUpperCase() || 'SS';
+
   return (
-    <div className="flex flex-col h-screen w-full relative overflow-hidden bg-background md:mx-auto md:max-w-2xl lg:max-w-4xl shadow-2xl">
-      {/* Announcement banner — live from Firestore */}
-      <AnnouncementBanner />
+    <div className="app-shell min-h-screen text-white">
+      <div className="mx-auto flex min-h-screen w-full max-w-[1600px]">
+        <aside className="panel-linear sticky top-0 hidden h-screen w-[220px] shrink-0 flex-col justify-between border-r border-white/6 bg-[#0d0d14]/95 px-4 py-5 md:flex">
+          <div>
+            <div className="mb-8 flex items-center gap-3 px-2">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/12 text-xl shadow-[0_0_24px_rgba(108,99,255,0.2)]">
+                💰
+              </div>
+              <div className="font-display text-lg font-extrabold tracking-tight">
+                Smart<span className="text-primary">Spend</span>
+              </div>
+            </div>
 
-      <main className="flex-1 overflow-y-auto pb-24 md:pb-6 no-scrollbar w-full h-full">
-        <Outlet />
-      </main>
+            <nav className="space-y-2">
+              {desktopNavItems.map(item => {
+                const active = currentPath === item.path;
+                return (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    className={clsx(
+                      'flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold transition-all',
+                      active
+                        ? 'bg-primary/12 text-primary shadow-[inset_2px_0_0_0_var(--color-primary)]'
+                        : 'text-white/42 hover:bg-white/4 hover:text-white/70'
+                    )}
+                  >
+                    <item.icon size={16} />
+                    <span>{item.label}</span>
+                  </Link>
+                );
+              })}
+            </nav>
+          </div>
 
-      {/* FAB Overlay */}
+          <div className="space-y-4">
+            <button
+              onClick={() => setIsAiOpen(true)}
+              className="w-full rounded-2xl border border-primary/20 bg-primary/10 px-4 py-3 text-left text-sm font-bold text-primary transition hover:bg-primary/15"
+            >
+              + Ask SmartSpend AI
+            </button>
+
+            <div className="soft-divider flex items-center gap-3 border-t pt-4">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 font-display text-xs font-black text-primary">
+                {userInitials}
+              </div>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-bold text-white">{user?.displayName || 'SmartSpend User'}</p>
+                <p className="truncate text-[11px] text-white/28">{user?.email || 'local profile'}</p>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        <div className="flex min-h-screen min-w-0 flex-1 flex-col">
+          <AnnouncementBanner />
+
+          <header className="sticky top-0 z-40 border-b border-white/5 bg-[#09090d]/92 px-4 py-4 backdrop-blur-xl md:px-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 font-display text-sm font-black text-primary md:hidden">
+                  {userInitials}
+                </div>
+                <div className="hidden h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 font-display text-sm font-black text-primary md:flex">
+                  {userInitials}
+                </div>
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.24em] text-white/24">Welcome</p>
+                  <h1 className="text-lg font-extrabold text-white">
+                    {user?.displayName?.split(' ')[0] || 'Rohan'}
+                  </h1>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setIsAiOpen(true)}
+                  className="hidden rounded-2xl border border-primary/20 bg-primary/10 px-4 py-2.5 text-xs font-black uppercase tracking-[0.18em] text-primary transition hover:bg-primary/15 md:block"
+                >
+                  Ask AI
+                </button>
+                <button className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/6 bg-white/4 text-white/45 transition hover:text-white">
+                  <Bell size={16} />
+                </button>
+              </div>
+            </div>
+          </header>
+
+          <main className="min-h-0 flex-1 overflow-y-auto pb-28 md:pb-8">
+            <div className="mx-auto w-full max-w-[1280px] px-4 py-4 md:px-6">
+              <Outlet />
+            </div>
+          </main>
+        </div>
+      </div>
+
       <AnimatePresence>
         {isFabOpen && (
           <>
@@ -128,35 +252,31 @@ export function Layout() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-background/80 backdrop-blur-sm z-40"
+              className="fixed inset-0 z-40 bg-black/70 backdrop-blur-md md:hidden"
               onClick={() => setIsFabOpen(false)}
             />
             <motion.div
-              initial={{ y: 200, opacity: 0 }}
+              initial={{ y: 80, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 200, opacity: 0 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="absolute bottom-28 left-6 right-6 bg-surface border border-white/10 rounded-3xl p-6 z-50 shadow-2xl glass-card"
+              exit={{ y: 80, opacity: 0 }}
+              transition={{ type: 'spring', damping: 24, stiffness: 280 }}
+              className="panel-linear fixed bottom-24 left-1/2 z-50 w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 rounded-[28px] p-5 md:hidden"
             >
-              <h3 className="title-bold text-xl mb-4">Quick Add</h3>
-              <div className="grid grid-cols-3 gap-4">
-                {fabOptions.filter(o => o.enabled).map((opt, i) => (
-                  <motion.div
-                    key={i}
-                    initial={{ scale: 0.8, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    transition={{ delay: i * 0.05 }}
-                    className="flex flex-col items-center gap-2 cursor-pointer"
+              <div className="grid grid-cols-3 gap-3">
+                {fabOptions.filter(option => option.enabled).map(option => (
+                  <button
+                    key={option.label}
                     onClick={() => {
                       setIsFabOpen(false);
-                      handleFabClick(opt.onClick);
+                      handleFabClick(option.onClick);
                     }}
+                    className="rounded-3xl border border-white/6 bg-white/2 px-3 py-4 text-center transition hover:bg-white/5"
                   >
-                    <div className={clsx("w-14 h-14 rounded-2xl flex items-center justify-center text-white shadow-lg", opt.color)}>
-                      <opt.icon size={24} />
+                    <div className="mx-auto mb-2 flex h-11 w-11 items-center justify-center rounded-2xl bg-white/5 text-white/80">
+                      <option.icon size={18} />
                     </div>
-                    <span className="text-[10px] font-medium text-gray-300 text-center">{opt.label}</span>
-                  </motion.div>
+                    <div className="text-[11px] font-bold text-white/70">{option.label}</div>
+                  </button>
                 ))}
               </div>
             </motion.div>
@@ -164,43 +284,46 @@ export function Layout() {
         )}
       </AnimatePresence>
 
-      <nav className="absolute bottom-6 left-6 right-6 h-16 glass rounded-[2rem] px-4 flex justify-between items-center z-50 shadow-2xl border border-white/20">
-        {navItems.map((item) => {
-          if (item.isFab?.()) {
-            return (
-              <div key="fab" className="relative -top-2">
-                <motion.button
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.9 }}
-                  onClick={() => setIsFabOpen(!isFabOpen)}
-                  className="w-14 h-14 rounded-2xl bg-primary flex items-center justify-center text-white shadow-xl shadow-primary/30 z-50 border border-white/20"
-                  animate={{ rotate: isFabOpen ? 45 : 0 }}
-                >
-                  {isFabOpen ? <X size={24} /> : <Plus size={24} />}
-                </motion.button>
-              </div>
-            );
-          }
-
-          const isActive = location.pathname === item.path;
-
+      <nav className="fixed bottom-0 left-0 right-0 z-40 flex items-end border-t border-white/6 bg-[#09090d]/96 px-2 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-2 backdrop-blur-xl md:hidden">
+        {mobileNavItems.slice(0, 2).map(item => {
+          const active = currentPath === item.path;
           return (
             <Link
               key={item.path}
               to={item.path}
               className={clsx(
-                "relative flex items-center justify-center w-12 h-12 transition-all duration-300 rounded-xl",
-                isActive ? "text-primary bg-primary/20 shadow-[0_0_15px_rgba(99,102,241,0.2)]" : "text-white/40 hover:text-white/60 hover:bg-white/10"
+                'flex flex-1 flex-col items-center gap-1 py-2 text-[10px] font-bold transition',
+                active ? 'text-primary' : 'text-white/32'
               )}
             >
-              <item.icon size={20} strokeWidth={isActive ? 2.5 : 2} />
+              <item.icon size={18} />
+              <span>{item.label}</span>
+            </Link>
+          );
+        })}
 
-              {isActive && (
-                <motion.div
-                  layoutId="nav-dot"
-                  className="absolute -bottom-1.5 w-1 h-1 bg-primary rounded-full shadow-[0_0_8px_var(--color-primary)]"
-                />
+        <button
+          onClick={() => setIsFabOpen(open => !open)}
+          className="mb-2 flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-primary text-white shadow-[0_14px_32px_rgba(108,99,255,0.35)] transition"
+        >
+          <motion.div animate={{ rotate: isFabOpen ? 45 : 0 }}>
+            <Plus size={22} />
+          </motion.div>
+        </button>
+
+        {mobileNavItems.slice(2).map(item => {
+          const active = currentPath === item.path;
+          return (
+            <Link
+              key={item.path}
+              to={item.path}
+              className={clsx(
+                'flex flex-1 flex-col items-center gap-1 py-2 text-[10px] font-bold transition',
+                active ? 'text-primary' : 'text-white/32'
               )}
+            >
+              <item.icon size={18} />
+              <span>{item.label}</span>
             </Link>
           );
         })}
@@ -215,10 +338,10 @@ export function Layout() {
       {isReceiptScannerOpen && (
         <ReceiptScannerScreen onClose={() => setIsReceiptScannerOpen(false)} />
       )}
-      <PwaInstallPrompt />
-      <AiAssistant />
 
-      {/* Balance Setup Modal */}
+      <PwaInstallPrompt />
+      <AiAssistant forceOpen={isAiOpen} onOpenChange={setIsAiOpen} hideLauncher />
+
       <AnimatePresence>
         {isBalanceModalOpen && (
           <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
@@ -230,24 +353,22 @@ export function Layout() {
               className="absolute inset-0 bg-black/80 backdrop-blur-md"
             />
             <motion.div
-              initial={{ scale: 0.9, y: 50, opacity: 0 }}
+              initial={{ scale: 0.92, y: 24, opacity: 0 }}
               animate={{ scale: 1, y: 0, opacity: 1 }}
-              exit={{ scale: 0.9, y: 50, opacity: 0 }}
-              className="relative w-full max-w-md bg-surface border border-white/10 rounded-[32px] p-8 shadow-2xl overflow-hidden glass-card text-center"
+              exit={{ scale: 0.92, y: 24, opacity: 0 }}
+              className="panel-linear relative z-10 w-full max-w-md rounded-[32px] p-8 text-center"
             >
-              <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 blur-[80px] rounded-full -z-10" />
-
-              <div className="w-16 h-16 bg-primary/10 border border-primary/20 rounded-2xl flex items-center justify-center text-primary mx-auto mb-6">
-                <Coins size={32} className="animate-bounce" />
+              <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-3xl bg-primary/12 text-primary shadow-[0_0_30px_rgba(108,99,255,0.18)]">
+                <Coins size={30} />
               </div>
 
-              <h3 className="text-2xl font-bold text-white mb-2">Set Available Balance</h3>
-              <p className="text-gray-400 text-sm mb-6 leading-relaxed">
-                Please enter your starting available balance to unlock manual entry, voice, receipt scanning, and transfers.
+              <h3 className="mb-2 text-2xl font-extrabold text-white">Set Available Balance</h3>
+              <p className="mx-auto mb-6 max-w-sm text-sm leading-relaxed text-white/46">
+                Enter your starting balance to unlock manual entries, voice capture, receipt scanning, and transfers.
               </p>
 
               <div className="relative mb-6">
-                <span className="absolute left-5 top-1/2 -translate-y-1/2 text-2xl font-bold text-white/50">₹</span>
+                <span className="absolute left-5 top-1/2 -translate-y-1/2 text-2xl font-bold text-white/44">₹</span>
                 <input
                   type="number"
                   autoFocus
@@ -256,9 +377,11 @@ export function Layout() {
                     setBalanceInput(e.target.value);
                     if (balanceError) setBalanceError(null);
                   }}
-                  onKeyDown={(e) => { if (e.key === 'Enter') handleSetBalance(); }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSetBalance();
+                  }}
                   placeholder="0"
-                  className="w-full h-16 bg-black/40 border border-white/10 rounded-2xl pl-12 pr-6 text-2xl font-bold text-white placeholder:text-white/20 outline-none focus:border-primary/50 transition-colors"
+                  className="h-16 w-full rounded-2xl border border-white/8 bg-black/36 pl-12 pr-6 text-2xl font-black text-white outline-none transition focus:border-primary/50"
                 />
 
                 <AnimatePresence>
@@ -267,7 +390,7 @@ export function Layout() {
                       initial={{ opacity: 0, y: -10 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -10 }}
-                      className="mt-3 p-3 bg-error/10 border border-error/20 rounded-xl flex items-center justify-center gap-2 text-error text-xs font-bold"
+                      className="mt-3 flex items-center justify-center gap-2 rounded-xl border border-error/20 bg-error/10 p-3 text-xs font-bold text-error"
                     >
                       <AlertCircle size={14} />
                       {balanceError}
@@ -276,16 +399,16 @@ export function Layout() {
                 </AnimatePresence>
               </div>
 
-              <div className="flex gap-4">
+              <div className="flex gap-3">
                 <button
                   onClick={() => setIsBalanceModalOpen(false)}
-                  className="flex-1 h-14 rounded-2xl bg-white/5 text-gray-300 font-semibold hover:bg-white/10 active:scale-95 transition-all"
+                  className="flex-1 rounded-2xl bg-white/5 py-4 font-semibold text-gray-300 transition hover:bg-white/10"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleSetBalance}
-                  className="flex-1 h-14 rounded-2xl bg-primary text-white font-semibold hover:bg-primary/95 shadow-lg shadow-primary/20 active:scale-95 transition-all"
+                  className="flex-1 rounded-2xl bg-primary py-4 font-semibold text-white shadow-[0_14px_28px_rgba(108,99,255,0.24)] transition hover:bg-primary/90"
                 >
                   Set Balance
                 </button>

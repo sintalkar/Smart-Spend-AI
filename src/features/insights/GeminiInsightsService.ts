@@ -202,14 +202,7 @@ export class GeminiInsightsService {
       return await this.handleResponse(response, "Scan Receipt API Error");
     } catch (e: any) {
       if (e.message === "API_KEY_MISSING") {
-        // Return dummy data for demo if key is missing
-        return {
-          merchant_name: "Demo Merchant (Setup AI Key)",
-          date: new Date().toISOString(),
-          items: [{ name: "Demo Item", quantity: 1, total_price: 499, category: "shopping" }],
-          total: 499,
-          confidence: "Low (Demo Mode)"
-        };
+        throw new Error("Gemini API key is missing. Receipt scanning is unavailable until AI is configured.");
       }
       console.warn("Scan Receipt API Error", e);
       throw e;
