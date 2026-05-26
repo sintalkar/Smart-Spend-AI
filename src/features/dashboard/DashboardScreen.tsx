@@ -403,12 +403,12 @@ export default function DashboardScreen() {
             </div>
             <button
               onClick={() => {
-                setIsAddBalanceMode(hasStartingBalance ? 'add' : 'set');
+                setIsAddBalanceMode('set');
                 setIsAddBalanceOpen(true);
               }}
               className="rounded-xl border border-primary/20 bg-primary/10 px-3 py-1.5 text-xs font-black text-primary transition hover:scale-105 active:scale-95"
             >
-              {hasStartingBalance ? '+ Add' : 'Set'}
+              Adjust
             </button>
           </div>
 
