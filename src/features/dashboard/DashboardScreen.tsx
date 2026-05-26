@@ -22,6 +22,8 @@ import { isSameMonth } from 'date-fns';
 import { scoreCalculator } from '../money_score/MoneyScoreCalculator';
 import { EmptyState } from '../../core/ui/EmptyState';
 import { appRoutes, getAddEntryPath } from '../../core/routes';
+import { db as firestoreDb } from '../../firebase';
+import { doc, setDoc } from 'firebase/firestore';
 
 const categoryIcons: Record<string, any> = {
   shopping: ShoppingBag,
@@ -154,7 +156,7 @@ function StatCard({
 
 export default function DashboardScreen() {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const transactions =
     useLiveQuery(() => db.transactions.where('isDeleted').equals(0).reverse().sortBy('dateTime')) || [];
   const budgets = useLiveQuery(() => db.budgets.toArray()) || [];
@@ -163,8 +165,12 @@ export default function DashboardScreen() {
   const [addBalanceInput, setAddBalanceInput] = useState('');
   const [addBalanceNote, setAddBalanceNote] = useState('');
   const [addBalanceError, setAddBalanceError] = useState<string | null>(null);
-
-  const initialBalance = Number(localStorage.getItem('initial_balance') || 0);
+  const [startingBalance, setStartingBalance] = useState<number | null>(() => {
+    const stored = localStorage.getItem('initial_balance');
+    return stored ? Number(stored) : null;
+  });
+  const initialBalance = startingBalance ?? 0;
+  const hasStartingBalance = startingBalance !== null;
 
   const {
     availableBalance,
@@ -264,6 +270,31 @@ export default function DashboardScreen() {
   const budgetProgress = budgetLimit > 0 ? Math.min(100, Math.round((monthlySpent / budgetLimit) * 100)) : 0;
   const savingsRate = monthlyIncome > 0 ? Math.max(0, Math.round((savingsAmount / monthlyIncome) * 100)) : 0;
 
+  const handleSetStartingBalance = async () => {
+    const val = Number(addBalanceInput);
+    if (!addBalanceInput || Number.isNaN(val) || val <= 0) {
+      setAddBalanceError('Please enter a valid positive amount');
+      return;
+    }
+
+    try {
+      localStorage.setItem('initial_balance', val.toString());
+      setStartingBalance(val);
+      setIsAddBalanceOpen(false);
+      setAddBalanceInput('');
+      setAddBalanceNote('');
+      setAddBalanceError(null);
+
+      if (user) {
+        const userDocRef = doc(firestoreDb, `users/${user.uid}`);
+        await setDoc(userDocRef, { initialBalance: val, updatedAt: Date.now() }, { merge: true });
+      }
+    } catch (error) {
+      console.error(error);
+      setAddBalanceError('Failed to set starting balance. Please try again.');
+    }
+  };
+
   const handleAddBalanceSubmit = async () => {
     const val = Number(addBalanceInput);
     if (!addBalanceInput || Number.isNaN(val) || val <= 0) {
@@ -347,7 +378,7 @@ export default function DashboardScreen() {
               onClick={() => setIsAddBalanceOpen(true)}
               className="rounded-xl border border-primary/20 bg-primary/10 px-3 py-1.5 text-xs font-black text-primary"
             >
-              + Add
+              {hasStartingBalance ? '+ Add' : 'Set'}
             </button>
           </div>
 
@@ -556,8 +587,14 @@ export default function DashboardScreen() {
             >
               <div className="mb-4 flex items-center justify-between">
                 <div>
-                  <div className="text-2xl font-black text-white">Add Balance</div>
-                  <div className="mt-1 text-sm text-white/36">Top up your available balance manually.</div>
+                  <div className="text-2xl font-black text-white">
+                    {hasStartingBalance ? 'Add Balance' : 'Set Available Balance'}
+                  </div>
+                  <div className="mt-1 text-sm text-white/36">
+                    {hasStartingBalance
+                      ? 'Top up your available balance manually.'
+                      : 'Set your starting balance to unlock expense entry and balance tracking.'}
+                  </div>
                 </div>
                 <button onClick={() => setIsAddBalanceOpen(false)} className="text-white/36 hover:text-white">
                   <LogOut size={16} className="rotate-45" />
@@ -580,13 +617,15 @@ export default function DashboardScreen() {
                   />
                 </div>
 
-                <input
-                  type="text"
-                  value={addBalanceNote}
-                  onChange={(e) => setAddBalanceNote(e.target.value)}
-                  placeholder="Note (Salary, refund, gift)"
-                  className="h-12 w-full rounded-2xl border border-white/8 bg-black/36 px-4 text-white outline-none transition focus:border-primary/50"
-                />
+                {hasStartingBalance && (
+                  <input
+                    type="text"
+                    value={addBalanceNote}
+                    onChange={(e) => setAddBalanceNote(e.target.value)}
+                    placeholder="Note (Salary, refund, gift)"
+                    className="h-12 w-full rounded-2xl border border-white/8 bg-black/36 px-4 text-white outline-none transition focus:border-primary/50"
+                  />
+                )}
 
                 {addBalanceError ? (
                   <div className="flex items-center gap-2 rounded-xl border border-error/20 bg-error/10 p-3 text-sm text-error">
@@ -604,10 +643,10 @@ export default function DashboardScreen() {
                   Cancel
                 </button>
                 <button
-                  onClick={handleAddBalanceSubmit}
+                  onClick={hasStartingBalance ? handleAddBalanceSubmit : handleSetStartingBalance}
                   className="flex-1 rounded-2xl bg-primary py-4 font-semibold text-white shadow-[0_16px_32px_rgba(108,99,255,0.24)]"
                 >
-                  Confirm
+                  {hasStartingBalance ? 'Confirm' : 'Set Balance'}
                 </button>
               </div>
             </motion.div>
