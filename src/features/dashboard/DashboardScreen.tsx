@@ -18,6 +18,7 @@ import { db } from '../../db';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../core/auth/AuthProvider';
 import { BudgetPeriod, TransactionType } from '../../db/models';
+import { v4 as uuidv4 } from 'uuid';
 import { isSameMonth } from 'date-fns';
 import { scoreCalculator } from '../money_score/MoneyScoreCalculator';
 import { EmptyState } from '../../core/ui/EmptyState';
@@ -330,7 +331,6 @@ export default function DashboardScreen() {
     }
 
     try {
-      const { v4: uuidv4 } = await import('uuid');
       await db.transactions.add({
         id: uuidv4(),
         amount: val,
@@ -401,28 +401,15 @@ export default function DashboardScreen() {
               <div className="h-2 w-2 rounded-full bg-primary shadow-[0_0_12px_var(--color-primary)]" />
               <Label>Available Balance</Label>
             </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => {
-                  setIsAddBalanceMode('set');
-                  setIsAddBalanceOpen(true);
-                }}
-                className="rounded-xl border border-primary/20 bg-primary/10 px-3 py-1.5 text-xs font-black text-primary transition hover:bg-primary/20"
-              >
-                Set
-              </button>
-              {hasStartingBalance && (
-                <button
-                  onClick={() => {
-                    setIsAddBalanceMode('add');
-                    setIsAddBalanceOpen(true);
-                  }}
-                  className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 text-xs font-black text-emerald-400 transition hover:bg-emerald-500/20"
-                >
-                  + Add
-                </button>
-              )}
-            </div>
+            <button
+              onClick={() => {
+                setIsAddBalanceMode(hasStartingBalance ? 'add' : 'set');
+                setIsAddBalanceOpen(true);
+              }}
+              className="rounded-xl border border-primary/20 bg-primary/10 px-3 py-1.5 text-xs font-black text-primary transition hover:scale-105 active:scale-95"
+            >
+              {hasStartingBalance ? '+ Add' : 'Set'}
+            </button>
           </div>
 
           <div className="mb-6 text-[54px] font-black leading-none tracking-[-0.04em] text-white">
