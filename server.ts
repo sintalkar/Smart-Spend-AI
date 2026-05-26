@@ -2,6 +2,8 @@ import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
+import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 import { GoogleGenAI } from "@google/genai";
 import Groq from 'groq-sdk';
 import dotenv from 'dotenv';
@@ -1136,6 +1138,16 @@ Request: [scan request]`;
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
+      // Avoid re-importing vite.config.ts through tsx on Windows dev runs; the
+      // config file is still used by `vite build`.
+      configFile: false,
+      root: process.cwd(),
+      plugins: [react(), tailwindcss()],
+      resolve: {
+        alias: {
+          '@': path.resolve(process.cwd(), '.'),
+        },
+      },
       // In this embedded dev environment, Vite's default HMR websocket port can
       // collide with stale sessions. Use a dedicated explicit port instead.
       server: {

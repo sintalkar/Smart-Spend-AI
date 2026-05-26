@@ -19,12 +19,12 @@
         "accountLast4": { "type": "string" },
         "upiRefId": { "type": "string" },
         "receiptImagePath": { "type": "string" },
-        "isConfirmed": { "type": "boolean" },
-        "isRecurring": { "type": "boolean" },
+        "isConfirmed": { "type": "number" },
+        "isRecurring": { "type": "number" },
         "currency": { "type": "string" },
         "createdAt": { "type": "number" },
         "updatedAt": { "type": "number" },
-        "isDeleted": { "type": "boolean" }
+        "isDeleted": { "type": "number" }
       },
       "required": ["amount", "type", "categoryId", "dateTime", "source", "currency", "createdAt", "updatedAt", "isDeleted", "isConfirmed", "isRecurring"]
     },
@@ -37,7 +37,7 @@
         "icon": { "type": "string" },
         "color": { "type": "string" },
         "type": { "type": "string", "enum": ["EXPENSE", "INCOME"] },
-        "isCustom": { "type": "boolean" },
+        "isCustom": { "type": "number" },
         "parentId": { "type": "string" },
         "budgetLimit": { "type": "number" },
         "sortOrder": { "type": "number" }
@@ -55,7 +55,7 @@
         "startDate": { "type": "number" },
         "endDate": { "type": "number" },
         "alertThreshold": { "type": "number" },
-        "isActive": { "type": "boolean" }
+        "isActive": { "type": "number" }
       },
       "required": ["amount", "period", "startDate", "endDate", "alertThreshold", "isActive"]
     },
