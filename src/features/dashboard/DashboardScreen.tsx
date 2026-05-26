@@ -395,8 +395,8 @@ export default function DashboardScreen() {
         </div>
 
         <Panel className="relative mb-4 overflow-hidden p-6">
-          <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-primary opacity-[0.06]" />
-          <div className="mb-3 flex items-center justify-between">
+          <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-primary opacity-[0.06]" />
+          <div className="relative z-10 mb-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="h-2 w-2 rounded-full bg-primary shadow-[0_0_12px_var(--color-primary)]" />
               <Label>Available Balance</Label>
