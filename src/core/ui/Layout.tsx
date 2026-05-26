@@ -15,6 +15,7 @@ import {
   Shield,
   Wallet,
   Bell,
+  BrainCircuit,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import clsx from 'clsx';
@@ -39,6 +40,7 @@ type NavItem = {
 const desktopNavItems: NavItem[] = [
   { path: appRoutes.dashboard, icon: Home, label: 'Dashboard' },
   { path: appRoutes.transactions, icon: ListOrdered, label: 'Transactions' },
+  { path: appRoutes.aiAdvisor, icon: BrainCircuit, label: 'AI Advisor' },
   { path: appRoutes.insights, icon: PieChart, label: 'Insights' },
   { path: appRoutes.score, icon: Shield, label: 'Money Score' },
   { path: appRoutes.goals, icon: Target, label: 'Goals' },
@@ -48,6 +50,7 @@ const desktopNavItems: NavItem[] = [
 const mobileNavItems: NavItem[] = [
   { path: appRoutes.dashboard, icon: Home, label: 'Home' },
   { path: appRoutes.transactions, icon: ListOrdered, label: 'History' },
+  { path: appRoutes.aiAdvisor, icon: BrainCircuit, label: 'Advisor' },
   { path: appRoutes.insights, icon: PieChart, label: 'Insights' },
   { path: appRoutes.goals, icon: Target, label: 'Goals' },
 ];

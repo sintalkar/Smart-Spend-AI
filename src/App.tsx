@@ -12,6 +12,7 @@ import DashboardScreen from './features/dashboard/DashboardScreen';
 const TransactionsScreen = lazy(() => import('./features/transactions/TransactionsScreen'));
 const AddExpenseScreen = lazy(() => import('./features/add_expense/AddExpenseScreen'));
 const SmsDetectorScreen = lazy(() => import('./features/sms_detector/SmsDetectorScreen'));
+const AiAdvisorScreen = lazy(() => import('./features/ai_advisor/AiAdvisorScreen'));
 const InsightsScreen = lazy(() => import('./features/insights/InsightsScreen'));
 const MoneyScoreScreen = lazy(() => import('./features/money_score/MoneyScoreScreen'));
 const OnboardingScreen = lazy(() => import('./features/onboarding/OnboardingScreen'));
@@ -138,6 +139,7 @@ export default function App() {
               <Route path="transactions" element={<TransactionsScreen />} />
               <Route path="add" element={<AddExpenseScreen />} />
               <Route path="sms" element={<SmsDetectorScreen />} />
+              <Route path="ai-advisor" element={<AiAdvisorScreen />} />
               <Route path="insights" element={<InsightsScreen />} />
               <Route path="score" element={<MoneyScoreScreen />} />
               <Route path="budget" element={<SetBudgetScreen />} />

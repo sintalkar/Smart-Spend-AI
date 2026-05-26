@@ -3,6 +3,7 @@ export const appRoutes = {
   transactions: '/transactions',
   add: '/add',
   sms: '/sms',
+  aiAdvisor: '/ai-advisor',
   insights: '/insights',
   score: '/score',
   budget: '/budget',
