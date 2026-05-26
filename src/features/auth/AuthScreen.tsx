@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Globe, X, ShieldCheck } from 'lucide-react';
 import { auth } from '../../firebase';
-import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
+import { signInWithPopup, signInWithRedirect, GoogleAuthProvider } from 'firebase/auth';
 
 export default function AuthScreen() {
   const [loading, setLoading] = useState(false);
@@ -43,14 +43,36 @@ export default function AuthScreen() {
   };
 
   const handleGoogleLogin = async () => {
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+
     try {
       setLoading(true);
       setError(null);
-      const provider = new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
     } catch (e: any) {
       console.error(e);
-      setError(e.message || 'Login failed. Please try again.');
+
+      if (e?.code === 'auth/popup-blocked') {
+        try {
+          setError('Popup blocked by the browser. Redirecting you to Google sign-in...');
+          await signInWithRedirect(auth, provider);
+          return;
+        } catch (redirectError: any) {
+          console.error(redirectError);
+          setError(redirectError?.message || 'Redirect sign-in failed. Please try again.');
+          setLoading(false);
+          return;
+        }
+      }
+
+      if (e?.code === 'auth/popup-closed-by-user') {
+        setError('The sign-in popup was closed before login completed.');
+      } else if (e?.code === 'auth/cancelled-popup-request') {
+        setError('A sign-in request is already in progress. Please wait a moment and try again.');
+      } else {
+        setError(e.message || 'Login failed. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
