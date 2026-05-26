@@ -348,35 +348,6 @@ export default function DashboardScreen() {
         updatedAt: Date.now(),
       });
 
-      const globalBudget = budgets.find((b) => b.categoryId === 'global');
-      if (globalBudget) {
-        await db.budgets.update(globalBudget.id, {
-          amount: globalBudget.amount + val,
-        });
-      } else {
-        const newId = uuidv4();
-        const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime();
-        const endOfMonth = new Date(
-          new Date().getFullYear(),
-          new Date().getMonth() + 1,
-          0,
-          23,
-          59,
-          59,
-          999
-        ).getTime();
-        await db.budgets.add({
-          id: newId,
-          categoryId: 'global',
-          amount: val,
-          period: BudgetPeriod.MONTHLY,
-          startDate: startOfMonth,
-          endDate: endOfMonth,
-          alertThreshold: 0.8,
-          isActive: 1,
-        });
-      }
-
       setIsAddBalanceOpen(false);
       setAddBalanceInput('');
       setAddBalanceNote('');
@@ -396,20 +367,31 @@ export default function DashboardScreen() {
 
         <Panel className="relative mb-4 overflow-hidden p-6">
           <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-primary opacity-[0.06]" />
-          <div className="relative z-10 mb-3 flex items-center justify-between">
+          <div className="relative z-10 mb-3 flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <div className="h-2 w-2 rounded-full bg-primary shadow-[0_0_12px_var(--color-primary)]" />
               <Label>Available Balance</Label>
             </div>
-            <button
-              onClick={() => {
-                setIsAddBalanceMode('set');
-                setIsAddBalanceOpen(true);
-              }}
-              className="rounded-xl border border-primary/20 bg-primary/10 px-3 py-1.5 text-xs font-black text-primary transition hover:scale-105 active:scale-95"
-            >
-              Adjust
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  setIsAddBalanceMode('add');
+                  setIsAddBalanceOpen(true);
+                }}
+                className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 text-xs font-black text-emerald-400 transition hover:scale-105 active:scale-95"
+              >
+                + Add Money
+              </button>
+              <button
+                onClick={() => {
+                  setIsAddBalanceMode('set');
+                  setIsAddBalanceOpen(true);
+                }}
+                className="rounded-xl border border-white/8 bg-white/4 px-3 py-1.5 text-xs font-black text-white/60 transition hover:scale-105 hover:bg-white/10 hover:text-white active:scale-95"
+              >
+                Adjust
+              </button>
+            </div>
           </div>
 
           <div className="mb-6 text-[54px] font-black leading-none tracking-[-0.04em] text-white">
@@ -618,15 +600,48 @@ export default function DashboardScreen() {
               onClick={(e) => e.stopPropagation()}
               className="panel-linear relative z-10 w-full max-w-md rounded-[32px] p-8 cursor-default"
             >
-              <div className="mb-4">
-                <div className="text-2xl font-black text-white">
-                  {isAddBalanceMode === 'add' ? 'Add Balance' : 'Set Available Balance'}
+              {/* Premium Dynamic Header */}
+              <div className="mb-6">
+                <div className="text-2xl font-black text-white transition-all duration-300">
+                  {isAddBalanceMode === 'add' ? 'Add Money' : 'Adjust Starting Balance'}
                 </div>
-                <div className="mt-1 text-sm text-white/36">
+                <div className="mt-1 text-sm text-white/36 leading-relaxed">
                   {isAddBalanceMode === 'add'
-                    ? 'Top up your available balance manually.'
-                    : 'Set your starting balance to unlock expense entry and balance tracking.'}
+                    ? 'Top up your account balance and record it in your transaction history.'
+                    : 'Recalibrate your base starting balance to align actual and tracked amounts.'}
                 </div>
+              </div>
+
+              {/* Premium Segmented Tabs */}
+              <div className="mb-6 flex rounded-2xl bg-black/40 p-1 border border-white/5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAddBalanceMode('add');
+                    setAddBalanceError(null);
+                  }}
+                  className={`flex-1 rounded-xl py-3 text-xs font-black tracking-wider uppercase transition-all duration-300 ${
+                    isAddBalanceMode === 'add'
+                      ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20 scale-100'
+                      : 'text-white/44 hover:text-white/70 scale-95'
+                  }`}
+                >
+                  + Add Money
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAddBalanceMode('set');
+                    setAddBalanceError(null);
+                  }}
+                  className={`flex-1 rounded-xl py-3 text-xs font-black tracking-wider uppercase transition-all duration-300 ${
+                    isAddBalanceMode === 'set'
+                      ? 'bg-primary text-white shadow-lg shadow-primary/20 scale-100'
+                      : 'text-white/44 hover:text-white/70 scale-95'
+                  }`}
+                >
+                  Adjust Starting
+                </button>
               </div>
 
               <div className="space-y-4">
@@ -640,6 +655,15 @@ export default function DashboardScreen() {
                       setAddBalanceInput(e.target.value);
                       if (addBalanceError) setAddBalanceError(null);
                     }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        if (isAddBalanceMode === 'add') {
+                          handleAddBalanceSubmit();
+                        } else {
+                          handleSetStartingBalance();
+                        }
+                      }
+                    }}
                     placeholder="0"
                     className="h-16 w-full rounded-2xl border border-white/8 bg-black/36 pl-12 pr-6 text-2xl font-black text-white outline-none transition focus:border-primary/50"
                   />
@@ -650,6 +674,9 @@ export default function DashboardScreen() {
                     type="text"
                     value={addBalanceNote}
                     onChange={(e) => setAddBalanceNote(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleAddBalanceSubmit();
+                    }}
                     placeholder="Note (Salary, refund, gift)"
                     className="h-12 w-full rounded-2xl border border-white/8 bg-black/36 px-4 text-white outline-none transition focus:border-primary/50"
                   />
@@ -663,18 +690,24 @@ export default function DashboardScreen() {
                 ) : null}
               </div>
 
-              <div className="mt-6 flex gap-3">
+              <div className="mt-8 flex gap-3">
                 <button
+                  type="button"
                   onClick={() => setIsAddBalanceOpen(false)}
-                  className="flex-1 rounded-2xl bg-white/5 py-4 font-semibold text-white/70"
+                  className="flex-1 rounded-2xl bg-white/5 py-4 font-semibold text-white/70 hover:bg-white/10 transition"
                 >
                   Cancel
                 </button>
                 <button
+                  type="button"
                   onClick={isAddBalanceMode === 'add' ? handleAddBalanceSubmit : handleSetStartingBalance}
-                  className="flex-1 rounded-2xl bg-primary py-4 font-semibold text-white shadow-[0_16px_32px_rgba(108,99,255,0.24)]"
+                  className={`flex-1 rounded-2xl py-4 font-semibold text-white transition-all duration-300 ${
+                    isAddBalanceMode === 'add'
+                      ? 'bg-emerald-500 shadow-[0_16px_32px_rgba(16,185,129,0.24)] hover:bg-emerald-600'
+                      : 'bg-primary shadow-[0_16px_32px_rgba(108,99,255,0.24)] hover:opacity-90'
+                  }`}
                 >
-                  {isAddBalanceMode === 'add' ? 'Confirm' : 'Set Balance'}
+                  {isAddBalanceMode === 'add' ? 'Confirm Add' : 'Set Balance'}
                 </button>
               </div>
             </motion.div>
