@@ -601,34 +601,32 @@ export default function DashboardScreen() {
 
       <AnimatePresence>
         {isAddBalanceOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div 
+            onClick={() => setIsAddBalanceOpen(false)}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 cursor-pointer"
+          >
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              onClick={() => setIsAddBalanceOpen(false)}
               className="absolute inset-0 bg-black/80 backdrop-blur-md"
             />
             <motion.div
               initial={{ scale: 0.92, y: 24, opacity: 0 }}
               animate={{ scale: 1, y: 0, opacity: 1 }}
               exit={{ scale: 0.92, y: 24, opacity: 0 }}
-              className="panel-linear relative z-10 w-full max-w-md rounded-[32px] p-8"
+              onClick={(e) => e.stopPropagation()}
+              className="panel-linear relative z-10 w-full max-w-md rounded-[32px] p-8 cursor-default"
             >
-              <div className="mb-4 flex items-center justify-between">
-                <div>
-                  <div className="text-2xl font-black text-white">
-                    {isAddBalanceMode === 'add' ? 'Add Balance' : 'Set Available Balance'}
-                  </div>
-                  <div className="mt-1 text-sm text-white/36">
-                    {isAddBalanceMode === 'add'
-                      ? 'Top up your available balance manually.'
-                      : 'Set your starting balance to unlock expense entry and balance tracking.'}
-                  </div>
+              <div className="mb-4">
+                <div className="text-2xl font-black text-white">
+                  {isAddBalanceMode === 'add' ? 'Add Balance' : 'Set Available Balance'}
                 </div>
-                <button onClick={() => setIsAddBalanceOpen(false)} className="text-white/36 hover:text-white">
-                  <LogOut size={16} className="rotate-45" />
-                </button>
+                <div className="mt-1 text-sm text-white/36">
+                  {isAddBalanceMode === 'add'
+                    ? 'Top up your available balance manually.'
+                    : 'Set your starting balance to unlock expense entry and balance tracking.'}
+                </div>
               </div>
 
               <div className="space-y-4">
