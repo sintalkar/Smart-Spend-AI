@@ -301,11 +301,6 @@ export default function DashboardScreen() {
 
       const adjustedVal = val - allCredits + allDebits;
 
-      if (user) {
-        const userDocRef = doc(firestoreDb, `users/${user.uid}`);
-        await setDoc(userDocRef, { initialBalance: adjustedVal, updatedAt: Date.now() }, { merge: true });
-      }
-
       localStorage.setItem('initial_balance', adjustedVal.toString());
       setStartingBalance(adjustedVal);
       window.dispatchEvent(new CustomEvent('initial_balance_changed'));
@@ -314,6 +309,13 @@ export default function DashboardScreen() {
       setAddBalanceInput('');
       setAddBalanceNote('');
       setAddBalanceError(null);
+
+      if (user) {
+        const userDocRef = doc(firestoreDb, `users/${user.uid}`);
+        setDoc(userDocRef, { initialBalance: adjustedVal, updatedAt: Date.now() }, { merge: true }).catch(err => {
+          console.warn('[Firebase] Background balance sync failed:', err);
+        });
+      }
     } catch (error) {
       console.error(error);
       setAddBalanceError('Failed to set starting balance. Please try again.');

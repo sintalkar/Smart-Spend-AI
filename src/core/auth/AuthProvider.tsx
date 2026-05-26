@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, onAuthStateChanged } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db as firestoreDb } from '../../firebase';
 import AuthScreen from '../../features/auth/AuthScreen';
 import { handleFirestoreError, OperationType } from '../../lib/firestoreUtils';
@@ -52,6 +52,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
             try {
               const userDocRef = doc(firestoreDb, userDocPath);
+              
+              // Load user's initialBalance from Firestore if available
+              try {
+                const docSnap = await getDoc(userDocRef);
+                if (docSnap.exists()) {
+                  const data = docSnap.data();
+                  if (data && data.initialBalance != null) {
+                    console.log(`[AuthProvider] Loaded starting balance from Cloud: ₹${data.initialBalance}`);
+                    localStorage.setItem('initial_balance', data.initialBalance.toString());
+                    window.dispatchEvent(new CustomEvent('initial_balance_changed'));
+                  }
+                }
+              } catch (err) {
+                console.warn('[AuthProvider] Failed to fetch user profile document:', err);
+              }
+
               await setDoc(
                 userDocRef,
                 {

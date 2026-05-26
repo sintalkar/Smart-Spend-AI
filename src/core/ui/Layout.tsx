@@ -106,11 +106,6 @@ export function Layout() {
     }
 
     try {
-      if (user) {
-        const userDocRef = doc(firestoreDb, `users/${user.uid}`);
-        await setDoc(userDocRef, { initialBalance: val, updatedAt: Date.now() }, { merge: true });
-      }
-
       localStorage.setItem('initial_balance', val.toString());
       setInitialBalance(val);
       window.dispatchEvent(new CustomEvent('initial_balance_changed'));
@@ -118,6 +113,13 @@ export function Layout() {
       setIsBalanceModalOpen(false);
       setBalanceInput('');
       setBalanceError(null);
+
+      if (user) {
+        const userDocRef = doc(firestoreDb, `users/${user.uid}`);
+        setDoc(userDocRef, { initialBalance: val, updatedAt: Date.now() }, { merge: true }).catch(err => {
+          console.warn('[Firebase] Background balance sync failed:', err);
+        });
+      }
     } catch (e) {
       console.error(e);
       setBalanceError('Failed to set starting balance. Please try again.');
