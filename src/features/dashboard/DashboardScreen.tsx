@@ -162,6 +162,7 @@ export default function DashboardScreen() {
   const budgets = useLiveQuery(() => db.budgets.toArray()) || [];
 
   const [isAddBalanceOpen, setIsAddBalanceOpen] = useState(false);
+  const [isAddBalanceMode, setIsAddBalanceMode] = useState<'set' | 'add'>('set');
   const [addBalanceInput, setAddBalanceInput] = useState('');
   const [addBalanceNote, setAddBalanceNote] = useState('');
   const [addBalanceError, setAddBalanceError] = useState<string | null>(null);
@@ -291,13 +292,22 @@ export default function DashboardScreen() {
     }
 
     try {
+      const allCredits = transactions
+        .filter((t) => t.type === TransactionType.CREDIT && t.isDeleted === 0)
+        .reduce((sum, t) => sum + t.amount, 0);
+      const allDebits = transactions
+        .filter((t) => t.type === TransactionType.DEBIT && t.isDeleted === 0)
+        .reduce((sum, t) => sum + t.amount, 0);
+
+      const adjustedVal = val - allCredits + allDebits;
+
       if (user) {
         const userDocRef = doc(firestoreDb, `users/${user.uid}`);
-        await setDoc(userDocRef, { initialBalance: val, updatedAt: Date.now() }, { merge: true });
+        await setDoc(userDocRef, { initialBalance: adjustedVal, updatedAt: Date.now() }, { merge: true });
       }
 
-      localStorage.setItem('initial_balance', val.toString());
-      setStartingBalance(val);
+      localStorage.setItem('initial_balance', adjustedVal.toString());
+      setStartingBalance(adjustedVal);
       window.dispatchEvent(new CustomEvent('initial_balance_changed'));
       
       setIsAddBalanceOpen(false);
@@ -389,12 +399,28 @@ export default function DashboardScreen() {
               <div className="h-2 w-2 rounded-full bg-primary shadow-[0_0_12px_var(--color-primary)]" />
               <Label>Available Balance</Label>
             </div>
-            <button
-              onClick={() => setIsAddBalanceOpen(true)}
-              className="rounded-xl border border-primary/20 bg-primary/10 px-3 py-1.5 text-xs font-black text-primary"
-            >
-              {hasStartingBalance ? '+ Add' : 'Set'}
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  setIsAddBalanceMode('set');
+                  setIsAddBalanceOpen(true);
+                }}
+                className="rounded-xl border border-primary/20 bg-primary/10 px-3 py-1.5 text-xs font-black text-primary transition hover:bg-primary/20"
+              >
+                Set
+              </button>
+              {hasStartingBalance && (
+                <button
+                  onClick={() => {
+                    setIsAddBalanceMode('add');
+                    setIsAddBalanceOpen(true);
+                  }}
+                  className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 text-xs font-black text-emerald-400 transition hover:bg-emerald-500/20"
+                >
+                  + Add
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="mb-6 text-[54px] font-black leading-none tracking-[-0.04em] text-white">
@@ -603,10 +629,10 @@ export default function DashboardScreen() {
               <div className="mb-4 flex items-center justify-between">
                 <div>
                   <div className="text-2xl font-black text-white">
-                    {hasStartingBalance ? 'Add Balance' : 'Set Available Balance'}
+                    {isAddBalanceMode === 'add' ? 'Add Balance' : 'Set Available Balance'}
                   </div>
                   <div className="mt-1 text-sm text-white/36">
-                    {hasStartingBalance
+                    {isAddBalanceMode === 'add'
                       ? 'Top up your available balance manually.'
                       : 'Set your starting balance to unlock expense entry and balance tracking.'}
                   </div>
@@ -632,7 +658,7 @@ export default function DashboardScreen() {
                   />
                 </div>
 
-                {hasStartingBalance && (
+                {isAddBalanceMode === 'add' && (
                   <input
                     type="text"
                     value={addBalanceNote}
@@ -658,10 +684,10 @@ export default function DashboardScreen() {
                   Cancel
                 </button>
                 <button
-                  onClick={hasStartingBalance ? handleAddBalanceSubmit : handleSetStartingBalance}
+                  onClick={isAddBalanceMode === 'add' ? handleAddBalanceSubmit : handleSetStartingBalance}
                   className="flex-1 rounded-2xl bg-primary py-4 font-semibold text-white shadow-[0_16px_32px_rgba(108,99,255,0.24)]"
                 >
-                  {hasStartingBalance ? 'Confirm' : 'Set Balance'}
+                  {isAddBalanceMode === 'add' ? 'Confirm' : 'Set Balance'}
                 </button>
               </div>
             </motion.div>
