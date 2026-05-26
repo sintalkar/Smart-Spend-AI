@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
@@ -172,6 +172,19 @@ export default function DashboardScreen() {
   const initialBalance = startingBalance ?? 0;
   const hasStartingBalance = startingBalance !== null;
 
+  useEffect(() => {
+    const handleBalanceChange = () => {
+      const stored = localStorage.getItem('initial_balance');
+      setStartingBalance(stored ? Number(stored) : null);
+    };
+    window.addEventListener('initial_balance_changed', handleBalanceChange);
+    window.addEventListener('storage', handleBalanceChange);
+    return () => {
+      window.removeEventListener('initial_balance_changed', handleBalanceChange);
+      window.removeEventListener('storage', handleBalanceChange);
+    };
+  }, []);
+
   const {
     availableBalance,
     monthlySpent,
@@ -278,17 +291,19 @@ export default function DashboardScreen() {
     }
 
     try {
-      localStorage.setItem('initial_balance', val.toString());
-      setStartingBalance(val);
-      setIsAddBalanceOpen(false);
-      setAddBalanceInput('');
-      setAddBalanceNote('');
-      setAddBalanceError(null);
-
       if (user) {
         const userDocRef = doc(firestoreDb, `users/${user.uid}`);
         await setDoc(userDocRef, { initialBalance: val, updatedAt: Date.now() }, { merge: true });
       }
+
+      localStorage.setItem('initial_balance', val.toString());
+      setStartingBalance(val);
+      window.dispatchEvent(new CustomEvent('initial_balance_changed'));
+      
+      setIsAddBalanceOpen(false);
+      setAddBalanceInput('');
+      setAddBalanceNote('');
+      setAddBalanceError(null);
     } catch (error) {
       console.error(error);
       setAddBalanceError('Failed to set starting balance. Please try again.');

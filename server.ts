@@ -169,13 +169,11 @@ async function startServer() {
       const chat = getAI().chats.create({
         model: 'gemini-2.5-flash',
         config: { systemInstruction },
-      });
-      if (history && history.length > 0) {
-        chat.history = history.map(h => ({
+        history: history && history.length > 0 ? history.map(h => ({
           role: h.role === 'model' ? 'model' : 'user',
           parts: [{ text: h.text || '' }]
-        }));
-      }
+        })) : undefined
+      });
       const msgContents: any[] = [];
       if (hasFiles) {
         files!.forEach(f => {

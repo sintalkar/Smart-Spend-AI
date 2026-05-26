@@ -78,13 +78,16 @@ export function Layout() {
   }, []);
 
   useEffect(() => {
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'initial_balance') {
-        setInitialBalance(e.newValue ? Number(e.newValue) : null);
-      }
+    const handleBalanceChange = () => {
+      const newVal = localStorage.getItem('initial_balance');
+      setInitialBalance(newVal ? Number(newVal) : null);
     };
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
+    window.addEventListener('storage', handleBalanceChange);
+    window.addEventListener('initial_balance_changed', handleBalanceChange);
+    return () => {
+      window.removeEventListener('storage', handleBalanceChange);
+      window.removeEventListener('initial_balance_changed', handleBalanceChange);
+    };
   }, []);
 
   const handleFabClick = (onClickAction: () => void) => {
@@ -103,16 +106,18 @@ export function Layout() {
     }
 
     try {
-      localStorage.setItem('initial_balance', val.toString());
-      setInitialBalance(val);
-      setIsBalanceModalOpen(false);
-      setBalanceInput('');
-      setBalanceError(null);
-
       if (user) {
         const userDocRef = doc(firestoreDb, `users/${user.uid}`);
         await setDoc(userDocRef, { initialBalance: val, updatedAt: Date.now() }, { merge: true });
       }
+
+      localStorage.setItem('initial_balance', val.toString());
+      setInitialBalance(val);
+      window.dispatchEvent(new CustomEvent('initial_balance_changed'));
+
+      setIsBalanceModalOpen(false);
+      setBalanceInput('');
+      setBalanceError(null);
     } catch (e) {
       console.error(e);
       setBalanceError('Failed to set starting balance. Please try again.');
