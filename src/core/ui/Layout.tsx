@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Outlet, Link, useLocation } from 'react-router-dom';
+import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Home,
   ListOrdered,
@@ -28,6 +28,7 @@ import { useAuth } from '../auth/AuthProvider';
 import { AiAssistant } from '../../features/ai_assistant/AiAssistant';
 import { AnnouncementBanner } from './AnnouncementBanner';
 import { MaintenanceScreen } from './MaintenanceScreen';
+import { appRoutes, getAddEntryPath } from '../routes';
 
 type NavItem = {
   path: string;
@@ -36,23 +37,24 @@ type NavItem = {
 };
 
 const desktopNavItems: NavItem[] = [
-  { path: '/', icon: Home, label: 'Dashboard' },
-  { path: '/transactions', icon: ListOrdered, label: 'Transactions' },
-  { path: '/insights', icon: PieChart, label: 'Insights' },
-  { path: '/score', icon: Shield, label: 'Money Score' },
-  { path: '/goals', icon: Target, label: 'Goals' },
-  { path: '/budget', icon: Wallet, label: 'Budget' },
+  { path: appRoutes.dashboard, icon: Home, label: 'Dashboard' },
+  { path: appRoutes.transactions, icon: ListOrdered, label: 'Transactions' },
+  { path: appRoutes.insights, icon: PieChart, label: 'Insights' },
+  { path: appRoutes.score, icon: Shield, label: 'Money Score' },
+  { path: appRoutes.goals, icon: Target, label: 'Goals' },
+  { path: appRoutes.budget, icon: Wallet, label: 'Budget' },
 ];
 
 const mobileNavItems: NavItem[] = [
-  { path: '/', icon: Home, label: 'Home' },
-  { path: '/transactions', icon: ListOrdered, label: 'History' },
-  { path: '/insights', icon: PieChart, label: 'Insights' },
-  { path: '/goals', icon: Target, label: 'Goals' },
+  { path: appRoutes.dashboard, icon: Home, label: 'Home' },
+  { path: appRoutes.transactions, icon: ListOrdered, label: 'History' },
+  { path: appRoutes.insights, icon: PieChart, label: 'Insights' },
+  { path: appRoutes.goals, icon: Target, label: 'Goals' },
 ];
 
 export function Layout() {
   const location = useLocation();
+  const navigate = useNavigate();
   const [isFabOpen, setIsFabOpen] = useState(false);
   const [isVoiceSheetOpen, setIsVoiceSheetOpen] = useState(false);
   const [isReceiptScannerOpen, setIsReceiptScannerOpen] = useState(false);
@@ -129,7 +131,7 @@ export function Layout() {
   }, [location.pathname]);
 
   const fabOptions = [
-    { icon: Edit3, label: 'Manual', onClick: () => { adminService.logEvent('MANUAL_ENTRY'); window.location.href = '/add'; }, enabled: true },
+    { icon: Edit3, label: 'Manual', onClick: () => { adminService.logEvent('MANUAL_ENTRY'); navigate(getAddEntryPath('manual')); }, enabled: true },
     { icon: Mic, label: 'Voice', onClick: () => { adminService.logEvent('VOICE_ENTRY_USED'); setIsVoiceSheetOpen(true); }, enabled: toggles.voiceEntry },
     { icon: Camera, label: 'Receipt', onClick: () => { adminService.logEvent('RECEIPT_SCANNED'); setIsReceiptScannerOpen(true); }, enabled: toggles.receiptScanner },
   ];

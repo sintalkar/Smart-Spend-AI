@@ -21,6 +21,7 @@ import { BudgetPeriod, TransactionType } from '../../db/models';
 import { isSameMonth } from 'date-fns';
 import { scoreCalculator } from '../money_score/MoneyScoreCalculator';
 import { EmptyState } from '../../core/ui/EmptyState';
+import { appRoutes, getAddEntryPath } from '../../core/routes';
 
 const categoryIcons: Record<string, any> = {
   shopping: ShoppingBag,
@@ -386,7 +387,7 @@ export default function DashboardScreen() {
           style={{ borderColor: 'rgba(16,185,129,0.2)' }}
         >
           <button
-            onClick={() => navigate('/score')}
+            onClick={() => navigate(appRoutes.score)}
             className="flex w-full items-center justify-between text-left"
           >
             <div className="flex items-center gap-3">
@@ -409,10 +410,10 @@ export default function DashboardScreen() {
 
         <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
           {[
-            { icon: PenSquare, label: 'Manual', path: '/add' },
-            { icon: Mic, label: 'Voice', path: '/add' },
-            { icon: Camera, label: 'Receipt', path: '/add' },
-            { icon: MessageSquare, label: 'SMS', path: '/transactions' },
+            { icon: PenSquare, label: 'Manual', path: getAddEntryPath('manual') },
+            { icon: Mic, label: 'Voice', path: getAddEntryPath('voice') },
+            { icon: Camera, label: 'Receipt', path: getAddEntryPath('receipt') },
+            { icon: MessageSquare, label: 'SMS', path: appRoutes.sms },
           ].map((item) => (
             <button
               key={item.label}
@@ -433,7 +434,7 @@ export default function DashboardScreen() {
               Budgets
             </h2>
             <button
-              onClick={() => navigate('/budget')}
+              onClick={() => navigate(appRoutes.budget)}
               className="text-xs font-black text-primary"
             >
               Adjust →
@@ -481,7 +482,7 @@ export default function DashboardScreen() {
           <div className="mb-3 flex items-center justify-between">
             <div className="font-display text-[18px] font-black text-white">Recent Activity</div>
             <button
-              onClick={() => navigate('/transactions')}
+              onClick={() => navigate(appRoutes.transactions)}
               className="text-xs font-black text-primary"
             >
               See all →

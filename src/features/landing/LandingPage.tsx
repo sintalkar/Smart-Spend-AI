@@ -5,8 +5,11 @@ import {
   Menu, X, Check, Star, Play, Mic, Camera, BarChart3, TrendingUp, Cpu
 } from 'lucide-react';
 import { AreaChart, Area, ResponsiveContainer, XAxis } from 'recharts';
+import { Link, useNavigate } from 'react-router-dom';
+import { appRoutes } from '../../core/routes';
 
 export default function LandingPage() {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'insights' | 'automation' | 'scanner'>('insights');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'yearly'>('monthly');
@@ -23,7 +26,7 @@ export default function LandingPage() {
   ];
 
   const handleLaunchApp = () => {
-    window.location.href = '/';
+    navigate(appRoutes.dashboard);
   };
 
   return (
@@ -596,7 +599,7 @@ export default function LandingPage() {
             </div>
             
             <div className="flex flex-col sm:flex-row items-center gap-4 text-xs text-gray-500 font-mono">
-              <a href="/privacy" className="hover:text-white transition-colors underline">Privacy Policy (DPDPA 2023)</a>
+              <Link to={appRoutes.privacy} className="hover:text-white transition-colors underline">Privacy Policy (DPDPA 2023)</Link>
               <span>•</span>
               <span>© {new Date().getFullYear()} SmartSpend AI. Under Apache-2.0 License.</span>
             </div>

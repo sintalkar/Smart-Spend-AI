@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { ChevronLeft, Info, Sparkles, Check, Mic, MicOff, Plus, LayoutGrid, X, Camera } from 'lucide-react';
 import { db } from '../../db';
 import { TransactionType, CategoryType } from '../../db/models';
@@ -16,6 +16,8 @@ import { checkAndNotifyHighSpending } from '../../core/utils/notifications';
 
 export default function AddExpenseScreen() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const handledModeRef = useRef<string | null>(null);
   const [amount, setAmount] = useState('');
   const [merchant, setMerchant] = useState('');
   const [note, setNote] = useState('');
@@ -50,6 +52,23 @@ export default function AddExpenseScreen() {
   const { state: speechState, startListening, stopListening, transcript } = useSpeechRecognition((finalTranscript) => {
     setMagicInput(finalTranscript);
   });
+
+  useEffect(() => {
+    const mode = new URLSearchParams(location.search).get('mode');
+    if (!mode || handledModeRef.current === mode) return;
+
+    if (mode === 'receipt') {
+      handledModeRef.current = mode;
+      setIsScannerOpen(true);
+      return;
+    }
+
+    if (mode === 'voice' && speechState === 'Idle') {
+      handledModeRef.current = mode;
+      adminService.logEvent('SPEECH_RECOGNITION_STARTED');
+      startListening();
+    }
+  }, [location.search, speechState, startListening]);
 
   useEffect(() => {
     if (transcript && speechState === 'Listening') {
