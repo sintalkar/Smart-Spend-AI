@@ -400,12 +400,37 @@ async function startServer() {
     }
 
     try {
-      let prompt = `Analyze this receipt image. Extract all data as JSON:
-      {merchant_name, date, items: [{name, quantity, unit_price, total_price, category}], subtotal, tax, discount, total, payment_method, currency}
-      Categories: food_dining, groceries, shopping, healthcare, entertainment, other
-      Use null for missing fields. All prices as numbers (no currency symbols). 
-      Always find and return the final balance due on the receipt, avoiding other numerical values for the total field.
-      Currency should be 3-letter ISO code. Check values carefully to ensure the math generally adds up. Give a confidence score (High, Medium, Low).`;
+      let prompt = `Analyze this receipt image. Your absolute priority is to extract EVERY SINGLE individual purchase line item from the receipt (e.g. food dishes, grocery items, clothes, products, etc.) and list them in the "items" array. Do not group them into generic buckets unless completely unreadable.
+
+      Extract all data as a single JSON object matching this schema:
+      {
+        "merchant_name": string or null,
+        "date": "YYYY-MM-DD" or null,
+        "items": [
+          {
+            "name": string,
+            "quantity": number or null,
+            "unit_price": number or null,
+            "total_price": number,
+            "category": "food_dining" | "groceries" | "shopping" | "healthcare" | "entertainment" | "transportation" | "bills_utilities" | "other"
+          }
+        ],
+        "subtotal": number or null,
+        "tax": number or null,
+        "discount": number or null,
+        "total": number,
+        "payment_method": string or null,
+        "currency": string or null,
+        "confidence": "High" | "Medium" | "Low",
+        "raw_text_extracted": string
+      }
+
+      Additional Instructions:
+      1. Item Extraction: Locate the body of the receipt. Capture the name, quantity (if visible), unit price (if visible), and total price for each line item.
+      2. Prices: Return all prices as raw numbers (no currency symbols or commas).
+      3. Total: Ensure the "total" field accurately represents the final net payment due (balance due).
+      4. Category Suggestion: Map each item to the closest matching category ID among: food_dining, groceries, shopping, healthcare, entertainment, transportation, bills_utilities, other.
+      5. Raw OCR Text: transcrible the entire visible receipt text line-by-line and set it in "raw_text_extracted" as a robust fallback.`;
 
       if (isBankStatement) {
         prompt = `Analyze this bank statement PDF/image page. Extract all transaction line items as a JSON list:

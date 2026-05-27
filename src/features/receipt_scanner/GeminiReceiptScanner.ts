@@ -22,6 +22,7 @@ export interface ReceiptData {
   payment_method: string | null;
   currency: string | null;
   confidence: 'High' | 'Medium' | 'Low';
+  raw_text_extracted?: string | null;
 }
 
 export class GeminiReceiptScanner {
