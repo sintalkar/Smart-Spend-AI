@@ -13,6 +13,8 @@ import {
   PenSquare,
   MessageSquare,
   AlertCircle,
+  Sparkles,
+  CheckCircle2,
 } from 'lucide-react';
 import { db } from '../../db';
 import { useNavigate } from 'react-router-dom';
@@ -25,6 +27,7 @@ import { EmptyState } from '../../core/ui/EmptyState';
 import { appRoutes, getAddEntryPath } from '../../core/routes';
 import { db as firestoreDb } from '../../firebase';
 import { doc, setDoc } from 'firebase/firestore';
+import { useAiAdvisor } from '../ai_advisor/useAiAdvisor';
 
 const categoryIcons: Record<string, any> = {
   shopping: ShoppingBag,
@@ -158,6 +161,8 @@ function StatCard({
 export default function DashboardScreen() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const advisor = useAiAdvisor();
+  const isThinking = advisor.isThinking;
   const transactions =
     useLiveQuery(() => db.transactions.where('isDeleted').equals(0).reverse().sortBy('dateTime')) || [];
   const budgets = useLiveQuery(() => db.budgets.toArray()) || [];
@@ -490,6 +495,92 @@ export default function DashboardScreen() {
             </button>
           ))}
         </div>
+
+        {/* AI Smart Coach Section */}
+        <Panel className="relative mb-6 overflow-hidden p-6 border border-primary/20 bg-[linear-gradient(135deg,rgba(17,24,39,0.9),rgba(8,8,13,0.95))]">
+          {/* Glowing ambient background blur */}
+          <div className="absolute -right-20 -top-20 h-40 w-40 rounded-full bg-primary/10 blur-3xl pointer-events-none" />
+          <div className="absolute -left-20 -bottom-20 h-40 w-40 rounded-full bg-orange-500/5 blur-3xl pointer-events-none" />
+          
+          <div className="relative z-10">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#f97316] opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-[#f97316]"></span>
+                </div>
+                <Label color="#f97316">AI Coach Says</Label>
+              </div>
+              <button 
+                onClick={() => navigate(appRoutes.aiAdvisor)}
+                className="text-[10px] font-black uppercase tracking-wider text-primary hover:text-white/80 transition"
+              >
+                View Full Report →
+              </button>
+            </div>
+
+            <AnimatePresence mode="wait">
+              {isThinking ? (
+                <motion.div
+                  key="loader"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="flex flex-col items-center justify-center py-6 text-center"
+                >
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary mb-3">
+                    <Sparkles className="animate-spin text-primary" size={20} />
+                  </div>
+                  <div className="text-sm font-bold text-white tracking-wide">AI is analyzing Spends...</div>
+                  <div className="text-xs text-white/36 mt-1">Reviewing your balance, budgets, and transactions in real-time</div>
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="content"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="space-y-4"
+                >
+                  <div>
+                    <h3 className="text-base font-black text-white leading-tight tracking-tight mb-2">
+                      {advisor.analysis.generatedAdvice.headline}
+                    </h3>
+                    <p className="text-xs md:text-sm leading-relaxed text-white/50">
+                      {advisor.analysis.generatedAdvice.narrative}
+                    </p>
+                  </div>
+
+                  {/* Quick Stats Highlights */}
+                  <div className="grid grid-cols-2 gap-3 p-3 rounded-2xl bg-black/24 border border-white/5">
+                    <div>
+                      <div className="text-[9px] font-black uppercase tracking-wider text-white/28">Waste Rate</div>
+                      <div className="text-xs font-black mt-0.5" style={{ color: advisor.analysis.wastePercent > 25 ? '#F43F5E' : '#22C55E' }}>
+                        {Math.round(advisor.analysis.wastePercent)}% ({formatMoney(advisor.analysis.wasteAmount)})
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-[9px] font-black uppercase tracking-wider text-white/28">Spend Prediction</div>
+                      <div className="text-xs font-black text-white mt-0.5">
+                        {formatMoney(advisor.analysis.nextMonthPrediction)}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Actionable Tips (Max 2 for Dashboard brevity) */}
+                  <div className="space-y-2 pt-2 border-t border-white/6">
+                    <div className="text-[9px] font-black uppercase tracking-wider text-white/28 mb-1.5">Actionable Coaching Tips</div>
+                    {advisor.analysis.actionableTips.slice(0, 2).map((tip) => (
+                      <div key={tip} className="flex gap-2.5 items-start">
+                        <CheckCircle2 size={13} className="text-emerald-400 mt-0.5 shrink-0" />
+                        <span className="text-[11px] md:text-xs leading-normal text-white/44 font-semibold">{tip}</span>
+                      </div>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </Panel>
 
         <div className="mb-6">
           <div className="mb-3 flex items-center justify-between">

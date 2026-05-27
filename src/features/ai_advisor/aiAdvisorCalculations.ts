@@ -707,3 +707,35 @@ export function analyzeSmartAdvisor(params: {
     }),
   };
 }
+
+export function generateSmartAdvice(income: number, budget: number, expenses: number | { categoryId: string; amount: number }[]) {
+  const categoryExpenses: CategoryExpenseInput[] = typeof expenses === 'number' 
+    ? [{ categoryId: 'other', name: 'Other', amount: expenses }]
+    : expenses.map(e => ({ categoryId: e.categoryId, name: titleCase(e.categoryId), amount: e.amount }));
+
+  const totalSpent = categoryExpenses.reduce((sum, e) => sum + e.amount, 0);
+  const remaining = income - totalSpent;
+  const wasteAmount = categoryExpenses
+    .filter(e => isNonEssential(e.categoryId, e.name))
+    .reduce((sum, e) => sum + e.amount, 0);
+  const wastePercent = income > 0 ? (wasteAmount / income) * 100 : 0;
+  
+  const score = clamp(
+    Math.round(100 - wastePercent * 0.9 - Math.max(0, 25 - (income > 0 ? (remaining / income) * 100 : 0)) * 0.8),
+    0,
+    100
+  );
+
+  return generateAIAdvice({
+    income,
+    budgetGoal: budget,
+    categoryExpenses,
+    wasteAmount,
+    wastePercent,
+    totalSpent,
+    remaining,
+    healthScore: score,
+    personality: 'Balanced Spender',
+    nextMonthPrediction: totalSpent * 1.02,
+  });
+}
