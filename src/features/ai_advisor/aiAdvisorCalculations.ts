@@ -41,8 +41,17 @@ export type OptimizedBudgetItem = {
 
 export type AiAdvisorAnalysis = {
   income: number;
+  monthlyBudgetGoal: number;
   totalSpent: number;
   remaining: number;
+  budgetVariance: number;
+  budgetUsagePercent: number;
+  budgetStatus: 'under' | 'moderate' | 'over' | 'critical';
+  budgetStatusColor: string;
+  aiAdviceTitle: string;
+  aiAdviceMessage: string;
+  nextMonthPrediction: number;
+  nextMonthPredictionLabel: string;
   wasteAmount: number;
   wastePercent: number;
   savingsRate: number;
@@ -222,13 +231,14 @@ function buildInvestmentSuggestions(remaining: number): InvestmentSuggestion[] {
 
 function buildTips(params: {
   income: number;
+  monthlyBudgetGoal: number;
   wasteAmount: number;
   wastePercent: number;
   remaining: number;
   wasteCategories: WasteCategory[];
   budgetProgress: BudgetProgress[];
 }) {
-  const { income, wasteAmount, wastePercent, remaining, wasteCategories, budgetProgress } = params;
+  const { income, monthlyBudgetGoal, wasteAmount, wastePercent, remaining, wasteCategories, budgetProgress } = params;
   const topWaste = wasteCategories[0];
   const overBudget = budgetProgress.find((item) => item.percent > 100);
   const tips: string[] = [];
@@ -241,6 +251,10 @@ function buildTips(params: {
     tips.push(`Your waste spend is ${Math.round(wastePercent)}% of income. Keep it below 20% for a healthier month.`);
   } else if (income > 0) {
     tips.push('Keep non-essential spending below 20% of income and route the difference into savings on salary day.');
+  }
+
+  if (monthlyBudgetGoal > 0) {
+    tips.push(`Split your monthly budget goal into a weekly limit of INR ${roundMoney(monthlyBudgetGoal / 4).toLocaleString('en-IN')}.`);
   }
 
   if (overBudget) {
@@ -267,21 +281,83 @@ function buildTips(params: {
   return tips.slice(0, 5);
 }
 
+function getBudgetStatus(totalSpent: number, monthlyBudgetGoal: number) {
+  if (monthlyBudgetGoal <= 0) {
+    return {
+      status: 'moderate' as const,
+      color: '#F59E0B',
+      title: 'Set a budget goal to unlock sharper advice',
+      message: 'Add a monthly spending limit first. Smart Spend will compare your real expenses with the target and generate a stronger action plan.',
+    };
+  }
+
+  const usage = (totalSpent / monthlyBudgetGoal) * 100;
+  if (usage >= 125) {
+    return {
+      status: 'critical' as const,
+      color: '#F43F5E',
+      title: 'Strong warning: spending is far above budget',
+      message: 'Your actual spending is much higher than your goal. Freeze non-essential categories for the next 7 days and reset category limits immediately.',
+    };
+  }
+
+  if (usage > 100) {
+    return {
+      status: 'over' as const,
+      color: '#F97316',
+      title: 'You crossed your monthly budget',
+      message: 'You are over budget, but this is still recoverable. Focus on the top waste category and reduce flexible spending this week.',
+    };
+  }
+
+  if (usage >= 75) {
+    return {
+      status: 'moderate' as const,
+      color: '#F59E0B',
+      title: 'Moderate spending: stay alert',
+      message: 'You are within budget but close enough to require control. Keep purchases intentional and avoid impulse spending.',
+    };
+  }
+
+  return {
+    status: 'under' as const,
+    color: '#22C55E',
+    title: 'Great job: you are under budget',
+    message: 'Your spending is controlled. Move part of the surplus into savings or investments before it becomes casual spending.',
+  };
+}
+
+function predictNextMonthSpend(totalSpent: number, wastePercent: number, budgetStatus: AiAdvisorAnalysis['budgetStatus']) {
+  if (totalSpent <= 0) return 0;
+  const statusMultiplier =
+    budgetStatus === 'critical' ? 1.12 :
+    budgetStatus === 'over' ? 1.06 :
+    budgetStatus === 'moderate' ? 1.02 :
+    0.94;
+  const wasteMultiplier = wastePercent > 30 ? 1.05 : wastePercent < 15 ? 0.96 : 1;
+  return roundMoney(totalSpent * statusMultiplier * wasteMultiplier);
+}
+
 export function analyzeSmartAdvisor(params: {
   transactions: TransactionEntity[];
   budgets: BudgetEntity[];
   categories: CategoryEntity[];
   initialBalance: number;
+  incomeOverride?: number;
+  monthlyBudgetGoal?: number;
   now?: Date;
 }): AiAdvisorAnalysis {
-  const { transactions, budgets, categories, initialBalance, now = new Date() } = params;
+  const { transactions, budgets, categories, initialBalance, incomeOverride, monthlyBudgetGoal = 0, now = new Date() } = params;
   const activeTransactions = transactions.filter((tx) => tx.isDeleted === 0 && isSameMonth(tx.dateTime, now));
   const credits = activeTransactions.filter((tx) => tx.type === TransactionType.CREDIT);
   const debits = activeTransactions.filter((tx) => tx.type === TransactionType.DEBIT);
   const incomeFromCredits = credits.reduce((sum, tx) => sum + tx.amount, 0);
   const totalSpent = debits.reduce((sum, tx) => sum + tx.amount, 0);
-  const income = incomeFromCredits > 0 ? incomeFromCredits : initialBalance;
+  const income = incomeOverride && incomeOverride > 0 ? incomeOverride : incomeFromCredits > 0 ? incomeFromCredits : initialBalance;
   const remaining = income - totalSpent;
+  const budgetVariance = monthlyBudgetGoal - totalSpent;
+  const budgetUsagePercent = monthlyBudgetGoal > 0 ? (totalSpent / monthlyBudgetGoal) * 100 : 0;
+  const budgetSignal = getBudgetStatus(totalSpent, monthlyBudgetGoal);
 
   const spentByCategory = debits.reduce<Record<string, number>>((acc, tx) => {
     acc[tx.categoryId] = (acc[tx.categoryId] || 0) + tx.amount;
@@ -331,7 +407,7 @@ export function analyzeSmartAdvisor(params: {
     .map((categoryId) => {
       const meta = getCategoryMeta(categoryId, categories);
       const actual = spentByCategory[categoryId] || 0;
-      const budget = categoryBudgetMap.get(categoryId) || Math.max(actual, income * 0.08, 1);
+      const budget = categoryBudgetMap.get(categoryId) || Math.max(actual, monthlyBudgetGoal * 0.1, income * 0.08, 1);
       return {
         categoryId,
         name: meta.name,
@@ -371,12 +447,13 @@ export function analyzeSmartAdvisor(params: {
   });
 
   if (optimizedBudget.length === 0 && income > 0) {
+    const planBase = monthlyBudgetGoal > 0 ? monthlyBudgetGoal : income;
     optimizedBudget.push(
       {
         categoryId: 'needs',
         name: 'Needs',
         current: 0,
-        recommended: roundMoney(income * 0.5),
+        recommended: roundMoney(planBase * 0.5),
         reason: 'Keep core essentials within half of income.',
         color: '#38BDF8',
       },
@@ -384,7 +461,7 @@ export function analyzeSmartAdvisor(params: {
         categoryId: 'wants',
         name: 'Wants',
         current: 0,
-        recommended: roundMoney(income * 0.2),
+        recommended: roundMoney(planBase * 0.2),
         reason: 'Limit non-essential spending to protect savings.',
         color: '#F97316',
       },
@@ -392,7 +469,7 @@ export function analyzeSmartAdvisor(params: {
         categoryId: 'savings',
         name: 'Savings',
         current: 0,
-        recommended: roundMoney(income * 0.3),
+        recommended: roundMoney(Math.max(0, income - planBase)),
         reason: 'Pay yourself first as soon as income arrives.',
         color: '#22C55E',
       }
@@ -401,8 +478,22 @@ export function analyzeSmartAdvisor(params: {
 
   return {
     income,
+    monthlyBudgetGoal,
     totalSpent,
     remaining,
+    budgetVariance,
+    budgetUsagePercent,
+    budgetStatus: budgetSignal.status,
+    budgetStatusColor: budgetSignal.color,
+    aiAdviceTitle: budgetSignal.title,
+    aiAdviceMessage: budgetSignal.message,
+    nextMonthPrediction: predictNextMonthSpend(totalSpent, wastePercent, budgetSignal.status),
+    nextMonthPredictionLabel:
+      budgetSignal.status === 'under'
+        ? 'Likely lower if you keep this discipline'
+        : budgetSignal.status === 'moderate'
+          ? 'Likely stable, but watch flexible spending'
+          : 'Likely higher unless you cut waste now',
     wasteAmount,
     wastePercent,
     savingsRate,
@@ -415,6 +506,6 @@ export function analyzeSmartAdvisor(params: {
     budgetProgress,
     investmentSuggestions: buildInvestmentSuggestions(remaining),
     optimizedBudget,
-    actionableTips: buildTips({ income, wasteAmount, wastePercent, remaining, wasteCategories, budgetProgress }),
+    actionableTips: buildTips({ income, monthlyBudgetGoal, wasteAmount, wastePercent, remaining, wasteCategories, budgetProgress }),
   };
 }
