@@ -19,6 +19,8 @@ import {
 } from 'lucide-react';
 import { Cell, Pie, PieChart as RechartsPieChart, ResponsiveContainer, Tooltip } from 'recharts';
 import { db } from '../../db/database';
+import { BudgetPeriod, TransactionType } from '../../db/models';
+import { v4 as uuidv4 } from 'uuid';
 import {
   AiAdvisorAnalysis,
   analyzeSmartAdvisor,
@@ -158,7 +160,13 @@ export default function AiAdvisorScreen() {
   const budgets = useLiveQuery(() => db.budgets.toArray()) || [];
   const categories = useLiveQuery(() => db.categories.toArray()) || [];
   const [storedBalance, setStoredBalance] = useState(() => Number(localStorage.getItem('initial_balance') || 0));
-  const [incomeInput, setIncomeInput] = useState(() => localStorage.getItem('advisor_monthly_income') || '');
+  const [incomeInput, setIncomeInput] = useState(() => {
+    const cached = localStorage.getItem('advisor_monthly_income');
+    if (cached) return cached;
+    // Fallback: calculate initial/available balance
+    const storedBal = Number(localStorage.getItem('initial_balance') || 0);
+    return storedBal > 0 ? String(storedBal) : '';
+  });
   const [budgetInput, setBudgetInput] = useState(() => localStorage.getItem('advisor_budget_goal') || '');
   const [scanInput, setScanInput] = useState('');
   const [isThinking, setIsThinking] = useState(false);
@@ -166,14 +174,45 @@ export default function AiAdvisorScreen() {
   const [showPlan, setShowPlan] = useState(false);
 
   useEffect(() => {
-    const syncBalance = () => setStoredBalance(Number(localStorage.getItem('initial_balance') || 0));
+    const syncBalance = () => {
+      const storedBal = Number(localStorage.getItem('initial_balance') || 0);
+      setStoredBalance(storedBal);
+
+      // Auto-populate available balance if user updates it from the Dashboard Available Balance card
+      const allCredits = transactions
+        .filter((t) => t.type === TransactionType.CREDIT && t.isDeleted === 0)
+        .reduce((sum, t) => sum + t.amount, 0);
+      const allDebits = transactions
+        .filter((t) => t.type === TransactionType.DEBIT && t.isDeleted === 0)
+        .reduce((sum, t) => sum + t.amount, 0);
+      
+      const realAvailableBalance = Math.round(storedBal + allCredits - allDebits);
+      if (realAvailableBalance > 0) {
+        setIncomeInput(String(realAvailableBalance));
+        localStorage.setItem('advisor_monthly_income', String(realAvailableBalance));
+      }
+    };
+
+    const syncBudget = () => {
+      const budgetGoal = localStorage.getItem('advisor_budget_goal');
+      if (budgetGoal) {
+        setBudgetInput(budgetGoal);
+      }
+    };
+
+    // Listen to window events fired by Dashboard Available Balance and Budget Limit updates
     window.addEventListener('initial_balance_changed', syncBalance);
-    window.addEventListener('storage', syncBalance);
+    window.addEventListener('advisor_settings_changed', syncBudget);
+    window.addEventListener('storage', () => {
+      syncBalance();
+      syncBudget();
+    });
+
     return () => {
       window.removeEventListener('initial_balance_changed', syncBalance);
-      window.removeEventListener('storage', syncBalance);
+      window.removeEventListener('advisor_settings_changed', syncBudget);
     };
-  }, []);
+  }, [transactions]);
 
   useEffect(() => {
     if (incomeInput) localStorage.setItem('advisor_monthly_income', incomeInput);
@@ -181,7 +220,45 @@ export default function AiAdvisorScreen() {
 
   useEffect(() => {
     if (budgetInput) localStorage.setItem('advisor_budget_goal', budgetInput);
-  }, [budgetInput]);
+    // Sync back to db budgets global store if changed by user directly in advisor screen
+    const syncBudgetToDb = async () => {
+      const val = Number(budgetInput);
+      if (!val || isNaN(val) || val <= 0) return;
+      try {
+        const globalBudget = budgets.find((b) => b.categoryId === 'global');
+        if (globalBudget) {
+          if (globalBudget.amount !== val) {
+            await db.budgets.update(globalBudget.id, { amount: val });
+          }
+        } else {
+          const newId = uuidv4();
+          const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime();
+          const endOfMonth = new Date(
+            new Date().getFullYear(),
+            new Date().getMonth() + 1,
+            0,
+            23,
+            59,
+            59,
+            999
+          ).getTime();
+          await db.budgets.add({
+            id: newId,
+            categoryId: 'global',
+            amount: val,
+            period: BudgetPeriod.MONTHLY,
+            startDate: startOfMonth,
+            endDate: endOfMonth,
+            alertThreshold: 0.8,
+            isActive: 1,
+          });
+        }
+      } catch (err) {
+        console.warn('Sync advisor budget to DB failed:', err);
+      }
+    };
+    syncBudgetToDb();
+  }, [budgetInput, budgets]);
 
   const monthlyIncome = parseAmount(incomeInput);
   const monthlyBudgetGoal = parseAmount(budgetInput);
