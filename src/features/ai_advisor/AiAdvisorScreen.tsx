@@ -19,7 +19,13 @@ import {
 } from 'lucide-react';
 import { Cell, Pie, PieChart as RechartsPieChart, ResponsiveContainer, Tooltip } from 'recharts';
 import { db } from '../../db/database';
-import { analyzeSmartAdvisor, BudgetProgress, WasteCategory } from './aiAdvisorCalculations';
+import {
+  AiAdvisorAnalysis,
+  analyzeSmartAdvisor,
+  BudgetProgress,
+  parseScannedExpenseText,
+  WasteCategory,
+} from './aiAdvisorCalculations';
 
 const formatMoney = (amount: number) =>
   new Intl.NumberFormat('en-IN', {
@@ -154,6 +160,9 @@ export default function AiAdvisorScreen() {
   const [storedBalance, setStoredBalance] = useState(() => Number(localStorage.getItem('initial_balance') || 0));
   const [incomeInput, setIncomeInput] = useState(() => localStorage.getItem('advisor_monthly_income') || '');
   const [budgetInput, setBudgetInput] = useState(() => localStorage.getItem('advisor_budget_goal') || '');
+  const [scanInput, setScanInput] = useState('');
+  const [isThinking, setIsThinking] = useState(false);
+  const [generatedAnalysis, setGeneratedAnalysis] = useState<AiAdvisorAnalysis | null>(null);
   const [showPlan, setShowPlan] = useState(false);
 
   useEffect(() => {
@@ -178,6 +187,7 @@ export default function AiAdvisorScreen() {
   const monthlyBudgetGoal = parseAmount(budgetInput);
   const hasIncome = monthlyIncome > 0;
   const hasBudget = monthlyBudgetGoal > 0;
+  const scannedExpenses = useMemo(() => parseScannedExpenseText(scanInput), [scanInput]);
 
   const analysis = useMemo(
     () =>
@@ -188,17 +198,37 @@ export default function AiAdvisorScreen() {
         initialBalance: storedBalance,
         incomeOverride: monthlyIncome,
         monthlyBudgetGoal,
+        scannedExpenses,
       }),
-    [budgets, categories, monthlyBudgetGoal, monthlyIncome, storedBalance, transactions]
+    [budgets, categories, monthlyBudgetGoal, monthlyIncome, scannedExpenses, storedBalance, transactions]
   );
 
   const canAnalyze = hasIncome && hasBudget;
-  const activeStep = !hasIncome ? 1 : !hasBudget ? 2 : showPlan ? 5 : 3;
+  const activeStep = !hasIncome ? 1 : !hasBudget ? 2 : isThinking ? 3 : showPlan ? 5 : 4;
+  const smartAnalysis = generatedAnalysis || analysis;
+
+  useEffect(() => {
+    if (!canAnalyze) {
+      setGeneratedAnalysis(null);
+      setIsThinking(false);
+      return;
+    }
+
+    setIsThinking(true);
+    setGeneratedAnalysis(null);
+    const timer = window.setTimeout(() => {
+      setGeneratedAnalysis(analysis);
+      setIsThinking(false);
+    }, 850);
+
+    return () => window.clearTimeout(timer);
+  }, [analysis, canAnalyze]);
+
   const wasteData =
-    analysis.wasteCategories.length > 0
-      ? analysis.wasteCategories.slice(0, 5)
+    smartAnalysis.wasteCategories.length > 0
+      ? smartAnalysis.wasteCategories.slice(0, 5)
       : [{ categoryId: 'none', name: 'No waste detected', amount: 1, color: '#22C55E', share: 100 }];
-  const optimizedSavings = analysis.optimizedBudget.reduce((sum, item) => sum + Math.max(0, item.current - item.recommended), 0);
+  const optimizedSavings = smartAnalysis.optimizedBudget.reduce((sum, item) => sum + Math.max(0, item.current - item.recommended), 0);
 
   return (
     <div className="pb-24">
@@ -282,41 +312,94 @@ export default function AiAdvisorScreen() {
           </div>
         </section>
 
+        <section className={`panel-linear mb-5 rounded-[32px] border p-5 transition md:p-6 ${
+          canAnalyze ? 'border-orange-400/16' : 'border-white/4 opacity-55'
+        }`}>
+          <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-400/12 text-orange-200">
+                <BrainCircuit size={22} />
+              </div>
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.24em] text-white/30">Scanning Section</p>
+                <h2 className="text-2xl font-black tracking-[-0.04em] text-white">Paste scanned bill or SMS data</h2>
+              </div>
+            </div>
+            <div className="rounded-2xl border border-white/8 bg-black/24 px-4 py-2 text-xs font-black text-white/42">
+              {scannedExpenses.length} parsed categories
+            </div>
+          </div>
+          <textarea
+            value={scanInput}
+            onChange={(event) => setScanInput(event.target.value)}
+            placeholder="Example: Zomato Rs 850, Netflix Rs 649, Amazon shopping Rs 2400, Uber Rs 320"
+            className="min-h-28 w-full resize-none rounded-[24px] border border-white/8 bg-black/32 p-4 text-sm leading-6 text-white outline-none transition placeholder:text-white/22 focus:border-orange-300/40"
+          />
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            {scannedExpenses.length > 0 ? (
+              scannedExpenses.map((expense) => (
+                <div key={expense.categoryId} className="rounded-2xl border border-white/6 bg-white/[0.025] p-3">
+                  <div className="text-sm font-black text-white">{expense.name}</div>
+                  <div className="mt-1 text-xs text-white/42">{formatMoney(expense.amount)} added to live analysis</div>
+                </div>
+              ))
+            ) : (
+              <div className="rounded-2xl border border-white/6 bg-white/[0.025] p-3 text-sm text-white/42 md:col-span-3">
+                Paste receipt/SMS lines here and the local AI parser will classify amounts into dining, shopping, subscriptions, transport, groceries, bills, or other.
+              </div>
+            )}
+          </div>
+        </section>
+
         {!canAnalyze ? (
           <div className="rounded-[30px] border border-orange-400/20 bg-orange-400/10 p-6 text-center">
             <Sparkles className="mx-auto mb-3 text-orange-200" size={28} />
             <h2 className="text-xl font-black text-white">Complete Step {hasIncome ? '2' : '1'} to unlock the AI report</h2>
             <p className="mt-2 text-sm text-white/46">The sequence is intentionally locked for your demo: income first, budget goal second, analysis after that.</p>
           </div>
+        ) : isThinking ? (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="rounded-[34px] border border-primary/25 bg-primary/10 p-8 text-center shadow-[0_24px_80px_rgba(108,99,255,0.12)]"
+          >
+            <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-3xl bg-primary/18 text-primary">
+              <Sparkles className="animate-pulse" size={30} />
+            </div>
+            <h2 className="text-2xl font-black text-white">AI is thinking...</h2>
+            <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-white/50">
+              Reading income, budget goal, actual expenses, scanned text, waste categories, and spending personality before generating advice.
+            </p>
+          </motion.div>
         ) : (
           <>
             <section className="mb-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               <MetricCard
                 label="Actual Spending"
-                value={formatMoney(analysis.totalSpent)}
-                helper={`${Math.round(analysis.budgetUsagePercent)}% of your budget goal used`}
-                color={analysis.budgetStatusColor}
+                value={formatMoney(smartAnalysis.totalSpent)}
+                helper={`${Math.round(smartAnalysis.budgetUsagePercent)}% of your budget goal used`}
+                color={smartAnalysis.budgetStatusColor}
                 icon={WalletCards}
               />
               <MetricCard
                 label="Budget Difference"
-                value={formatMoney(Math.abs(analysis.budgetVariance))}
-                helper={analysis.budgetVariance >= 0 ? 'Under your planned limit' : 'Above your planned limit'}
-                color={analysis.budgetVariance >= 0 ? '#22C55E' : '#F43F5E'}
+                value={formatMoney(Math.abs(smartAnalysis.budgetVariance))}
+                helper={smartAnalysis.budgetVariance >= 0 ? 'Under your planned limit' : 'Above your planned limit'}
+                color={smartAnalysis.budgetVariance >= 0 ? '#22C55E' : '#F43F5E'}
                 icon={Gauge}
               />
               <MetricCard
                 label="Waste Detector"
-                value={`${Math.round(analysis.wastePercent)}%`}
-                helper={`${formatMoney(analysis.wasteAmount)} in non-essential spending`}
-                color={analysis.wastePercent > 30 ? '#F43F5E' : analysis.wastePercent > 18 ? '#F59E0B' : '#22C55E'}
+                value={`${Math.round(smartAnalysis.wastePercent)}%`}
+                helper={`${formatMoney(smartAnalysis.wasteAmount)} in non-essential spending`}
+                color={smartAnalysis.wastePercent > 30 ? '#F43F5E' : smartAnalysis.wastePercent > 18 ? '#F59E0B' : '#22C55E'}
                 icon={Flame}
               />
               <MetricCard
                 label="Health Score"
-                value={`${analysis.healthScore}/100`}
-                helper={`${analysis.healthLabel} financial health`}
-                color={analysis.healthColor}
+                value={`${smartAnalysis.healthScore}/100`}
+                helper={`${smartAnalysis.healthLabel} financial health`}
+                color={smartAnalysis.healthColor}
                 icon={ShieldCheck}
               />
             </section>
@@ -328,11 +411,11 @@ export default function AiAdvisorScreen() {
                     <p className="text-[10px] font-black uppercase tracking-[0.24em] text-white/30">Step 3 - Expense Analysis</p>
                     <h2 className="mt-2 text-3xl font-black tracking-[-0.04em] text-white">Budget vs actual spending</h2>
                     <p className="mt-3 text-sm leading-6 text-white/48">
-                      You planned {formatMoney(monthlyBudgetGoal)} and actually spent {formatMoney(analysis.totalSpent)} this month.
+                      You planned {formatMoney(monthlyBudgetGoal)} and actually spent {formatMoney(smartAnalysis.totalSpent)} this month.
                     </p>
                   </div>
-                  <div className="rounded-2xl px-3 py-2 text-xs font-black uppercase tracking-[0.18em]" style={{ background: `${analysis.budgetStatusColor}18`, color: analysis.budgetStatusColor }}>
-                    {analysis.budgetStatus}
+                  <div className="rounded-2xl px-3 py-2 text-xs font-black uppercase tracking-[0.18em]" style={{ background: `${smartAnalysis.budgetStatusColor}18`, color: smartAnalysis.budgetStatusColor }}>
+                    {smartAnalysis.budgetStatus}
                   </div>
                 </div>
 
@@ -340,15 +423,15 @@ export default function AiAdvisorScreen() {
                   <div
                     className="h-full rounded-full"
                     style={{
-                      width: `${Math.min(140, analysis.budgetUsagePercent)}%`,
-                      background: `linear-gradient(90deg, ${analysis.budgetStatusColor}, #ffffff66)`,
+                      width: `${Math.min(140, smartAnalysis.budgetUsagePercent)}%`,
+                      background: `linear-gradient(90deg, ${smartAnalysis.budgetStatusColor}, #ffffff66)`,
                     }}
                   />
                 </div>
 
                 <div className="grid gap-3 md:grid-cols-2">
-                  {analysis.budgetProgress.length > 0 ? (
-                    analysis.budgetProgress.slice(0, 6).map((item) => <BudgetProgressRow key={item.categoryId} item={item} />)
+                  {smartAnalysis.budgetProgress.length > 0 ? (
+                    smartAnalysis.budgetProgress.slice(0, 6).map((item) => <BudgetProgressRow key={item.categoryId} item={item} />)
                   ) : (
                     <div className="rounded-2xl border border-white/6 bg-white/[0.025] p-5 text-sm text-white/44 md:col-span-2">
                       No expense data found for this month yet. Add transactions to make category analysis richer.
@@ -380,8 +463,8 @@ export default function AiAdvisorScreen() {
                 </div>
 
                 <div className="space-y-3">
-                  {analysis.wasteCategories.length > 0 ? (
-                    analysis.wasteCategories.slice(0, 4).map((item) => (
+                  {smartAnalysis.wasteCategories.length > 0 ? (
+                    smartAnalysis.wasteCategories.slice(0, 4).map((item) => (
                       <div key={item.categoryId} className="flex items-center justify-between rounded-2xl border border-white/6 bg-white/[0.025] px-4 py-3">
                         <div className="flex items-center gap-3">
                           <span className="h-3 w-3 rounded-full" style={{ background: item.color }} />
@@ -400,21 +483,24 @@ export default function AiAdvisorScreen() {
             </section>
 
             <section className="mb-5 grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
-              <div className="rounded-[32px] border p-5 md:p-6" style={{ borderColor: `${analysis.budgetStatusColor}40`, background: `${analysis.budgetStatusColor}12` }}>
+              <div className="rounded-[32px] border p-5 md:p-6" style={{ borderColor: `${smartAnalysis.budgetStatusColor}40`, background: `${smartAnalysis.budgetStatusColor}12` }}>
                 <div className="mb-5 flex items-center gap-3">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl" style={{ background: `${analysis.budgetStatusColor}18`, color: analysis.budgetStatusColor }}>
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl" style={{ background: `${smartAnalysis.budgetStatusColor}18`, color: smartAnalysis.budgetStatusColor }}>
                     <BrainCircuit size={22} />
                   </div>
                   <div>
                     <p className="text-[10px] font-black uppercase tracking-[0.24em] text-white/34">Step 4 - AI Smart Advice</p>
-                    <h2 className="text-2xl font-black tracking-[-0.04em] text-white">{analysis.aiAdviceTitle}</h2>
+                    <h2 className="text-2xl font-black tracking-[-0.04em] text-white">{smartAnalysis.generatedAdvice.headline}</h2>
                   </div>
                 </div>
-                <p className="text-sm leading-7 text-white/58">{analysis.aiAdviceMessage}</p>
+                <p className="text-sm leading-7 text-white/58">{smartAnalysis.generatedAdvice.narrative}</p>
+                <div className="mt-4 rounded-2xl border border-white/8 bg-black/22 p-4 text-sm leading-6 text-white/54">
+                  {smartAnalysis.generatedAdvice.wasteAlert}
+                </div>
                 <div className="mt-5 rounded-2xl border border-white/8 bg-black/22 p-4">
                   <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/30">AI Spending Personality</p>
-                  <h3 className="mt-2 text-2xl font-black text-white">{analysis.personality}</h3>
-                  <p className="mt-2 text-sm leading-6 text-white/48">{analysis.personalityDescription}</p>
+                  <h3 className="mt-2 text-2xl font-black text-white">{smartAnalysis.personality}</h3>
+                  <p className="mt-2 text-sm leading-6 text-white/48">{smartAnalysis.generatedAdvice.personalityInsight}</p>
                 </div>
               </div>
 
@@ -422,15 +508,15 @@ export default function AiAdvisorScreen() {
                 <div className="mb-5 flex items-center justify-between gap-4">
                   <div>
                     <p className="text-[10px] font-black uppercase tracking-[0.24em] text-white/30">Next Month Spending Prediction</p>
-                    <h2 className="mt-2 text-3xl font-black tracking-[-0.04em] text-white">{formatMoney(analysis.nextMonthPrediction)}</h2>
-                    <p className="mt-2 text-sm text-white/46">{analysis.nextMonthPredictionLabel}</p>
+                    <h2 className="mt-2 text-3xl font-black tracking-[-0.04em] text-white">{formatMoney(smartAnalysis.nextMonthPrediction)}</h2>
+                    <p className="mt-2 text-sm text-white/46">{smartAnalysis.generatedAdvice.predictionInsight}</p>
                   </div>
                   <div className="flex h-14 w-14 items-center justify-center rounded-3xl bg-sky-400/12 text-sky-300">
                     <TrendingUp size={25} />
                   </div>
                 </div>
                 <div className="grid gap-3 md:grid-cols-2">
-                  {analysis.actionableTips.map((tip) => (
+                  {smartAnalysis.generatedAdvice.smartActions.map((tip) => (
                     <div key={tip} className="flex gap-3 rounded-2xl border border-white/6 bg-white/[0.025] p-4">
                       <CheckCircle2 className="mt-0.5 shrink-0 text-emerald-300" size={17} />
                       <p className="text-sm leading-6 text-white/54">{tip}</p>
@@ -452,7 +538,10 @@ export default function AiAdvisorScreen() {
                   </div>
                 </div>
                 <div className="space-y-3">
-                  {analysis.investmentSuggestions.map((item) => (
+                  <div className="rounded-2xl border border-emerald-400/10 bg-emerald-400/[0.055] p-4 text-sm leading-6 text-emerald-50/80">
+                    {smartAnalysis.generatedAdvice.investmentNarrative}
+                  </div>
+                  {smartAnalysis.investmentSuggestions.map((item) => (
                     <div key={item.title} className="rounded-2xl border border-emerald-400/10 bg-emerald-400/[0.055] p-4">
                       <div className="mb-2 flex items-center justify-between gap-3">
                         <div className="text-sm font-black text-white">{item.title}</div>
@@ -490,7 +579,7 @@ export default function AiAdvisorScreen() {
 
                 {showPlan ? (
                   <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="mt-6 grid gap-3 md:grid-cols-2">
-                    {analysis.optimizedBudget.map((item) => (
+                    {smartAnalysis.optimizedBudget.map((item) => (
                       <div key={item.categoryId} className="rounded-[24px] border border-white/10 bg-black/24 p-4">
                         <div className="mb-3 flex items-center justify-between gap-3">
                           <div>

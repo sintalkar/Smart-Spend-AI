@@ -39,6 +39,25 @@ export type OptimizedBudgetItem = {
   color: string;
 };
 
+export type CategoryExpenseInput = {
+  categoryId: string;
+  name: string;
+  amount: number;
+  color?: string;
+};
+
+export type GeneratedAIAdvice = {
+  headline: string;
+  narrative: string;
+  severity: 'positive' | 'mild' | 'warning' | 'critical';
+  wasteAlert: string;
+  personalityInsight: string;
+  remainingBalanceInsight: string;
+  investmentNarrative: string;
+  predictionInsight: string;
+  smartActions: string[];
+};
+
 export type AiAdvisorAnalysis = {
   income: number;
   monthlyBudgetGoal: number;
@@ -65,6 +84,7 @@ export type AiAdvisorAnalysis = {
   investmentSuggestions: InvestmentSuggestion[];
   optimizedBudget: OptimizedBudgetItem[];
   actionableTips: string[];
+  generatedAdvice: GeneratedAIAdvice;
 };
 
 const nonEssentialKeywords = [
@@ -101,6 +121,8 @@ const clamp = (value: number, min: number, max: number) => Math.min(max, Math.ma
 
 const roundMoney = (value: number) => Math.max(0, Math.round(value));
 
+const formatINR = (value: number) => `INR ${roundMoney(value).toLocaleString('en-IN')}`;
+
 function isSameMonth(timestamp: number, now = new Date()) {
   const date = new Date(timestamp);
   return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
@@ -124,6 +146,54 @@ function titleCase(value: string) {
 function isNonEssential(categoryId: string, name: string) {
   const haystack = `${categoryId} ${name}`.toLowerCase();
   return nonEssentialKeywords.some((keyword) => haystack.includes(keyword));
+}
+
+function inferCategoryFromText(text: string): CategoryExpenseInput {
+  const lower = text.toLowerCase();
+  if (/zomato|swiggy|restaurant|cafe|pizza|burger|dining|food|chai|coffee/.test(lower)) {
+    return { categoryId: 'food_dining', name: 'Dining Out', amount: 0, color: '#F97316' };
+  }
+  if (/amazon|flipkart|myntra|shopping|clothes|fashion|mall/.test(lower)) {
+    return { categoryId: 'shopping', name: 'Shopping', amount: 0, color: '#FB7185' };
+  }
+  if (/netflix|prime|spotify|hotstar|subscription|ott|youtube/.test(lower)) {
+    return { categoryId: 'subscriptions', name: 'Subscriptions', amount: 0, color: '#F43F5E' };
+  }
+  if (/movie|game|gaming|event|concert|entertainment/.test(lower)) {
+    return { categoryId: 'entertainment', name: 'Entertainment', amount: 0, color: '#A855F7' };
+  }
+  if (/uber|ola|metro|fuel|petrol|diesel|bus|transport/.test(lower)) {
+    return { categoryId: 'transportation', name: 'Transport', amount: 0, color: '#38BDF8' };
+  }
+  if (/grocery|groceries|dmart|vegetable|milk|mart/.test(lower)) {
+    return { categoryId: 'groceries', name: 'Groceries', amount: 0, color: '#4CAF50' };
+  }
+  if (/bill|electricity|water|wifi|internet|mobile|recharge|utility/.test(lower)) {
+    return { categoryId: 'bills_utilities', name: 'Bills & Utilities', amount: 0, color: '#FACC15' };
+  }
+  return { categoryId: 'other', name: 'Other', amount: 0, color: '#64748B' };
+}
+
+export function parseScannedExpenseText(input: string): CategoryExpenseInput[] {
+  const categoryMap = new Map<string, CategoryExpenseInput>();
+  const lines = input.split(/\n|,|;/).map((line) => line.trim()).filter(Boolean);
+
+  lines.forEach((line) => {
+    const amountMatch = line.match(/(?:rs\.?|inr|₹)?\s*([0-9]+(?:,[0-9]{2,3})*(?:\.[0-9]{1,2})?)/i);
+    if (!amountMatch) return;
+
+    const amount = Number(amountMatch[1].replace(/,/g, ''));
+    if (!Number.isFinite(amount) || amount <= 0) return;
+
+    const category = inferCategoryFromText(line);
+    const existing = categoryMap.get(category.categoryId);
+    categoryMap.set(category.categoryId, {
+      ...category,
+      amount: (existing?.amount || 0) + amount,
+    });
+  });
+
+  return Array.from(categoryMap.values());
 }
 
 function getHealthColor(score: number) {
@@ -227,6 +297,108 @@ function buildInvestmentSuggestions(remaining: number): InvestmentSuggestion[] {
       description: 'Keep this liquid for learning, certificates, or project-demo expenses.',
     },
   ];
+}
+
+export function generateAIAdvice(params: {
+  income: number;
+  budgetGoal: number;
+  categoryExpenses: CategoryExpenseInput[];
+  wasteAmount: number;
+  wastePercent: number;
+  totalSpent: number;
+  remaining: number;
+  healthScore: number;
+  personality: SpendingPersonality;
+  topWasteCategory?: WasteCategory;
+  nextMonthPrediction: number;
+}): GeneratedAIAdvice {
+  const {
+    income,
+    budgetGoal,
+    categoryExpenses,
+    wasteAmount,
+    wastePercent,
+    totalSpent,
+    remaining,
+    healthScore,
+    personality,
+    topWasteCategory,
+    nextMonthPrediction,
+  } = params;
+  const budgetUsage = budgetGoal > 0 ? (totalSpent / budgetGoal) * 100 : 0;
+  const savingsRate = income > 0 ? (remaining / income) * 100 : 0;
+  const largestCategory = [...categoryExpenses].sort((a, b) => b.amount - a.amount)[0];
+  const topWasteText = topWasteCategory
+    ? `${topWasteCategory.name} alone is using ${formatINR(topWasteCategory.amount)}, which is ${topWasteCategory.share}% of detected waste.`
+    : 'I do not see a dominant waste category yet, so the best move is to keep tracking a few more transactions.';
+
+  const severity: GeneratedAIAdvice['severity'] =
+    budgetUsage >= 125 || remaining < 0 ? 'critical' :
+    budgetUsage > 100 || wastePercent >= 35 ? 'warning' :
+    budgetUsage >= 75 || wastePercent >= 18 ? 'mild' :
+    'positive';
+
+  const headline =
+    severity === 'critical' ? 'Your spending needs immediate control this month.' :
+    severity === 'warning' ? 'You are close to a risky spending pattern.' :
+    severity === 'mild' ? 'You are doing okay, but there is visible room to optimize.' :
+    'Your spending is healthy. Now turn the surplus into progress.';
+
+  const narrative =
+    severity === 'critical'
+      ? `You planned ${formatINR(budgetGoal)}, but actual spending is ${formatINR(totalSpent)}. That means the budget is under pressure, and the fastest recovery is to pause flexible spending for one week.`
+      : severity === 'warning'
+        ? `Your budget usage is ${Math.round(budgetUsage)}%. The month is not out of control, but your wants need a sharper cap before they eat into savings.`
+        : severity === 'mild'
+          ? `Your spending is manageable at ${Math.round(budgetUsage)}% of budget. A few small corrections can noticeably improve your savings rate.`
+          : `You are under budget with ${formatINR(Math.max(0, budgetGoal - totalSpent))} of planned spending still protected. This is a good moment to invest before the surplus disappears into casual purchases.`;
+
+  const wasteAlert =
+    wasteAmount > 0
+      ? `Waste detector found ${formatINR(wasteAmount)} in non-essential spend, equal to ${Math.round(wastePercent)}% of income. ${topWasteText}`
+      : 'Waste detector did not find major non-essential leakage. Keep categories separated so future scans stay accurate.';
+
+  const remainingBalanceInsight =
+    remaining >= 0
+      ? `After expenses, you still have ${formatINR(remaining)} left. A smart split is savings first, then planned treats, not the other way around.`
+      : `You are short by ${formatINR(Math.abs(remaining))}. Avoid new investments this week and focus on recovering cash flow first.`;
+
+  const investmentNarrative =
+    remaining > 0
+      ? `Suggested allocation: ${formatINR(remaining * 0.4)} emergency fund, ${formatINR(remaining * 0.3)} SIP, ${formatINR(remaining * 0.2)} FD, and ${formatINR(remaining * 0.1)} flexible learning or goal fund.`
+      : 'Investment should wait until cash flow is positive. For now, cancel waste, reduce wants, and rebuild a small emergency buffer.';
+
+  const predictionInsight =
+    nextMonthPrediction > totalSpent
+      ? `If the same habits continue, next month may rise to around ${formatINR(nextMonthPrediction)}. Cutting the top waste category by 25% is the quickest way to reverse that.`
+      : `If you keep this discipline, next month can stay near ${formatINR(nextMonthPrediction)} or lower. Automating savings will lock in the improvement.`;
+
+  const smartActions = [
+    largestCategory
+      ? `Put a weekly cap on ${largestCategory.name}: start with ${formatINR(Math.max(500, largestCategory.amount / 4))} per week.`
+      : 'Add or scan at least three expenses so the advisor can identify your strongest spending pattern.',
+    topWasteCategory
+      ? `Reduce ${topWasteCategory.name} by 25% next month and redirect about ${formatINR(topWasteCategory.amount * 0.25)} to savings.`
+      : 'Keep non-essential categories below 20% of monthly income.',
+    savingsRate < 15
+      ? `Savings rate is ${Math.round(savingsRate)}%. Move savings on income day instead of waiting for month-end.`
+      : `Savings rate is ${Math.round(savingsRate)}%. Protect it by separating investment money immediately.`,
+    healthScore < 55
+      ? 'Use a 7-day freeze on shopping, dining out, subscriptions, and entertainment.'
+      : 'Review subscriptions once this week and cancel anything unused.',
+  ];
+
+  return {
+    headline,
+    narrative,
+    severity,
+    wasteAlert,
+    personalityInsight: `${personality}: this label is based on budget usage, savings rate, waste percentage, and the category that dominates your flexible spending.`,
+    remainingBalanceInsight,
+    investmentNarrative,
+    predictionInsight,
+    smartActions,
+  };
 }
 
 function buildTips(params: {
@@ -345,24 +517,32 @@ export function analyzeSmartAdvisor(params: {
   initialBalance: number;
   incomeOverride?: number;
   monthlyBudgetGoal?: number;
+  scannedExpenses?: CategoryExpenseInput[];
   now?: Date;
 }): AiAdvisorAnalysis {
-  const { transactions, budgets, categories, initialBalance, incomeOverride, monthlyBudgetGoal = 0, now = new Date() } = params;
+  const { transactions, budgets, categories, initialBalance, incomeOverride, monthlyBudgetGoal = 0, scannedExpenses = [], now = new Date() } = params;
   const activeTransactions = transactions.filter((tx) => tx.isDeleted === 0 && isSameMonth(tx.dateTime, now));
   const credits = activeTransactions.filter((tx) => tx.type === TransactionType.CREDIT);
   const debits = activeTransactions.filter((tx) => tx.type === TransactionType.DEBIT);
   const incomeFromCredits = credits.reduce((sum, tx) => sum + tx.amount, 0);
   const totalSpent = debits.reduce((sum, tx) => sum + tx.amount, 0);
   const income = incomeOverride && incomeOverride > 0 ? incomeOverride : incomeFromCredits > 0 ? incomeFromCredits : initialBalance;
-  const remaining = income - totalSpent;
-  const budgetVariance = monthlyBudgetGoal - totalSpent;
-  const budgetUsagePercent = monthlyBudgetGoal > 0 ? (totalSpent / monthlyBudgetGoal) * 100 : 0;
-  const budgetSignal = getBudgetStatus(totalSpent, monthlyBudgetGoal);
 
   const spentByCategory = debits.reduce<Record<string, number>>((acc, tx) => {
     acc[tx.categoryId] = (acc[tx.categoryId] || 0) + tx.amount;
     return acc;
   }, {});
+
+  scannedExpenses.forEach((expense) => {
+    spentByCategory[expense.categoryId] = (spentByCategory[expense.categoryId] || 0) + expense.amount;
+  });
+
+  const scannedTotal = scannedExpenses.reduce((sum, expense) => sum + expense.amount, 0);
+  const adjustedTotalSpent = totalSpent + scannedTotal;
+  const adjustedRemaining = income - adjustedTotalSpent;
+  const budgetVariance = monthlyBudgetGoal - adjustedTotalSpent;
+  const budgetUsagePercent = monthlyBudgetGoal > 0 ? (adjustedTotalSpent / monthlyBudgetGoal) * 100 : 0;
+  const budgetSignal = getBudgetStatus(adjustedTotalSpent, monthlyBudgetGoal);
 
   const wasteByCategory = Object.entries(spentByCategory).reduce<Record<string, number>>((acc, [categoryId, amount]) => {
     const meta = getCategoryMeta(categoryId, categories);
@@ -374,10 +554,10 @@ export function analyzeSmartAdvisor(params: {
 
   const wasteAmount = Object.values(wasteByCategory).reduce((sum, amount) => sum + amount, 0);
   const wastePercent = income > 0 ? (wasteAmount / income) * 100 : 0;
-  const savingsRate = income > 0 ? ((income - totalSpent) / income) * 100 : 0;
-  const overspendPenalty = income > 0 && totalSpent > income ? 25 : 0;
+  const savingsRate = income > 0 ? ((income - adjustedTotalSpent) / income) * 100 : 0;
+  const overspendPenalty = income > 0 && adjustedTotalSpent > income ? 25 : 0;
   const score = clamp(
-    Math.round(100 - wastePercent * 0.9 - Math.max(0, 25 - savingsRate) * 0.8 - overspendPenalty),
+    Math.round(100 - wastePercent * 0.9 - Math.max(0, 25 - savingsRate) * 0.8 - overspendPenalty - Math.max(0, budgetUsagePercent - 100) * 0.25),
     0,
     100
   );
@@ -421,7 +601,7 @@ export function analyzeSmartAdvisor(params: {
 
   const { personality, description } = getPersonality({
     income,
-    totalSpent,
+    totalSpent: adjustedTotalSpent,
     savingsRate,
     wastePercent,
     wasteByCategory,
@@ -479,15 +659,15 @@ export function analyzeSmartAdvisor(params: {
   return {
     income,
     monthlyBudgetGoal,
-    totalSpent,
-    remaining,
+    totalSpent: adjustedTotalSpent,
+    remaining: adjustedRemaining,
     budgetVariance,
     budgetUsagePercent,
     budgetStatus: budgetSignal.status,
     budgetStatusColor: budgetSignal.color,
     aiAdviceTitle: budgetSignal.title,
     aiAdviceMessage: budgetSignal.message,
-    nextMonthPrediction: predictNextMonthSpend(totalSpent, wastePercent, budgetSignal.status),
+    nextMonthPrediction: predictNextMonthSpend(adjustedTotalSpent, wastePercent, budgetSignal.status),
     nextMonthPredictionLabel:
       budgetSignal.status === 'under'
         ? 'Likely lower if you keep this discipline'
@@ -504,8 +684,26 @@ export function analyzeSmartAdvisor(params: {
     personalityDescription: description,
     wasteCategories,
     budgetProgress,
-    investmentSuggestions: buildInvestmentSuggestions(remaining),
+    investmentSuggestions: buildInvestmentSuggestions(adjustedRemaining),
     optimizedBudget,
-    actionableTips: buildTips({ income, monthlyBudgetGoal, wasteAmount, wastePercent, remaining, wasteCategories, budgetProgress }),
+    actionableTips: buildTips({ income, monthlyBudgetGoal, wasteAmount, wastePercent, remaining: adjustedRemaining, wasteCategories, budgetProgress }),
+    generatedAdvice: generateAIAdvice({
+      income,
+      budgetGoal: monthlyBudgetGoal,
+      categoryExpenses: budgetProgress.map((item) => ({
+        categoryId: item.categoryId,
+        name: item.name,
+        amount: item.actual,
+        color: item.color,
+      })),
+      wasteAmount,
+      wastePercent,
+      totalSpent: adjustedTotalSpent,
+      remaining: adjustedRemaining,
+      healthScore: score,
+      personality,
+      topWasteCategory: wasteCategories[0],
+      nextMonthPrediction: predictNextMonthSpend(adjustedTotalSpent, wastePercent, budgetSignal.status),
+    }),
   };
 }
