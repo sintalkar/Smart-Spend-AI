@@ -168,7 +168,7 @@ export default function DashboardScreen() {
   const budgets = useLiveQuery(() => db.budgets.toArray()) || [];
 
   const [isAddBalanceOpen, setIsAddBalanceOpen] = useState(false);
-  const [isAddBalanceMode, setIsAddBalanceMode] = useState<'set' | 'add'>('set');
+  const [isAddBalanceMode, setIsAddBalanceMode] = useState<'set' | 'add' | 'budget'>('set');
   const [addBalanceInput, setAddBalanceInput] = useState('');
   const [addBalanceNote, setAddBalanceNote] = useState('');
   const [addBalanceError, setAddBalanceError] = useState<string | null>(null);
@@ -375,6 +375,56 @@ export default function DashboardScreen() {
     }
   };
 
+  const handleSetBudgetLimit = async () => {
+    const val = Number(addBalanceInput);
+    if (!addBalanceInput || Number.isNaN(val) || val <= 0) {
+      setAddBalanceError('Please enter a valid positive amount');
+      return;
+    }
+
+    try {
+      const globalBudget = budgets.find((b) => b.categoryId === 'global');
+      if (globalBudget) {
+        await db.budgets.update(globalBudget.id, {
+          amount: val,
+        });
+      } else {
+        const newId = uuidv4();
+        const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime();
+        const endOfMonth = new Date(
+          new Date().getFullYear(),
+          new Date().getMonth() + 1,
+          0,
+          23,
+          59,
+          59,
+          999
+        ).getTime();
+        await db.budgets.add({
+          id: newId,
+          categoryId: 'global',
+          amount: val,
+          period: BudgetPeriod.MONTHLY,
+          startDate: startOfMonth,
+          endDate: endOfMonth,
+          alertThreshold: 0.8,
+          isActive: 1,
+        });
+      }
+
+      // Sync and propagate to other sections (AI Advisor, NetWorth, Goals, Score, etc.)
+      localStorage.setItem('advisor_budget_goal', val.toString());
+      window.dispatchEvent(new CustomEvent('advisor_settings_changed'));
+
+      setIsAddBalanceOpen(false);
+      setAddBalanceInput('');
+      setAddBalanceError(null);
+    } catch (error) {
+      console.error(error);
+      setAddBalanceError('Failed to set budget limit. Please try again.');
+    }
+  };
+
   return (
     <div className="pb-28">
       <div className="mx-auto max-w-[1180px]">
@@ -391,33 +441,54 @@ export default function DashboardScreen() {
             </div>
             <div className="flex items-center gap-2">
               {hasStartingBalance ? (
+                <>
+                  <button
+                    onClick={() => {
+                      setIsAddBalanceMode('add');
+                      setAddBalanceInput('');
+                      setAddBalanceError(null);
+                      setIsAddBalanceOpen(true);
+                    }}
+                    className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 text-xs font-black text-emerald-400 transition hover:scale-105 active:scale-95"
+                  >
+                    + Add Money
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIsAddBalanceMode('set');
+                      setAddBalanceInput(Math.max(0, Math.round(availableBalance)).toString());
+                      setAddBalanceError(null);
+                      setIsAddBalanceOpen(true);
+                    }}
+                    className="rounded-xl border border-white/8 bg-white/4 px-3 py-1.5 text-xs font-black text-white/60 transition hover:scale-105 hover:bg-white/10 hover:text-white active:scale-95"
+                  >
+                    Set Balance
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIsAddBalanceMode('budget');
+                      setAddBalanceInput(budgetLimit > 0 ? Math.round(budgetLimit).toString() : '');
+                      setAddBalanceError(null);
+                      setIsAddBalanceOpen(true);
+                    }}
+                    className="rounded-xl border border-white/8 bg-white/4 px-3 py-1.5 text-xs font-black text-white/60 transition hover:scale-105 hover:bg-white/10 hover:text-white active:scale-95"
+                  >
+                    Set Budget
+                  </button>
+                </>
+              ) : (
                 <button
                   onClick={() => {
-                    setIsAddBalanceMode('add');
+                    setIsAddBalanceMode('set');
                     setAddBalanceInput('');
                     setAddBalanceError(null);
                     setIsAddBalanceOpen(true);
                   }}
-                  className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 text-xs font-black text-emerald-400 transition hover:scale-105 active:scale-95"
+                  className="rounded-xl border border-primary/25 bg-primary px-4 py-1.5 text-xs font-black text-white shadow-[0_12px_28px_rgba(108,99,255,0.22)] transition hover:scale-105 active:scale-95"
                 >
-                  + Add Money
+                  Set Balance
                 </button>
-              ) : null}
-              <button
-                onClick={() => {
-                  setIsAddBalanceMode('set');
-                  setAddBalanceInput(hasStartingBalance ? Math.max(0, Math.round(availableBalance)).toString() : '');
-                  setAddBalanceError(null);
-                  setIsAddBalanceOpen(true);
-                }}
-                className={`rounded-xl px-3 py-1.5 text-xs font-black transition hover:scale-105 active:scale-95 ${
-                  hasStartingBalance
-                    ? 'border border-white/8 bg-white/4 text-white/60 hover:bg-white/10 hover:text-white'
-                    : 'border border-primary/25 bg-primary px-4 text-white shadow-[0_12px_28px_rgba(108,99,255,0.22)]'
-                }`}
-              >
-                Set Balance
-              </button>
+              )}
             </div>
           </div>
 
@@ -716,12 +787,18 @@ export default function DashboardScreen() {
               {/* Premium Dynamic Header */}
               <div className="mb-6">
                 <div className="text-2xl font-black text-white transition-all duration-300">
-                  {isAddBalanceMode === 'add' ? 'Add Money' : 'Set Available Balance'}
+                  {isAddBalanceMode === 'add'
+                    ? 'Add Money'
+                    : isAddBalanceMode === 'set'
+                    ? 'Set Available Balance'
+                    : 'Set Monthly Spending Limit'}
                 </div>
                 <div className="mt-1 text-sm text-white/36 leading-relaxed">
                   {isAddBalanceMode === 'add'
                     ? 'Top up your account balance and record it in your transaction history.'
-                    : 'Enter the amount you have available right now. Smart Spend will adjust the base balance behind the scenes.'}
+                    : isAddBalanceMode === 'set'
+                    ? 'Enter the amount you have available right now. Smart Spend will adjust the base balance behind the scenes.'
+                    : 'Define your global monthly spending cap. This limit guides AI alerts and budget health calculations.'}
                 </div>
               </div>
 
@@ -758,6 +835,21 @@ export default function DashboardScreen() {
                   >
                     Set Balance
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAddBalanceMode('budget');
+                      setAddBalanceInput(budgetLimit > 0 ? Math.round(budgetLimit).toString() : '');
+                      setAddBalanceError(null);
+                    }}
+                    className={`flex-1 rounded-xl py-3 text-xs font-black tracking-wider uppercase transition-all duration-300 ${
+                      isAddBalanceMode === 'budget'
+                        ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/20 scale-100'
+                        : 'text-white/44 hover:text-white/70 scale-95'
+                    }`}
+                  >
+                    Set Budget
+                  </button>
                 </div>
               ) : null}
 
@@ -776,8 +868,10 @@ export default function DashboardScreen() {
                       if (e.key === 'Enter') {
                         if (isAddBalanceMode === 'add') {
                           handleAddBalanceSubmit();
-                        } else {
+                        } else if (isAddBalanceMode === 'set') {
                           handleSetStartingBalance();
+                        } else {
+                          handleSetBudgetLimit();
                         }
                       }
                     }}
@@ -817,14 +911,26 @@ export default function DashboardScreen() {
                 </button>
                 <button
                   type="button"
-                  onClick={isAddBalanceMode === 'add' ? handleAddBalanceSubmit : handleSetStartingBalance}
+                  onClick={
+                    isAddBalanceMode === 'add'
+                      ? handleAddBalanceSubmit
+                      : isAddBalanceMode === 'set'
+                      ? handleSetStartingBalance
+                      : handleSetBudgetLimit
+                  }
                   className={`flex-1 rounded-2xl py-4 font-semibold text-white transition-all duration-300 ${
                     isAddBalanceMode === 'add'
                       ? 'bg-emerald-500 shadow-[0_16px_32px_rgba(16,185,129,0.24)] hover:bg-emerald-600'
-                      : 'bg-primary shadow-[0_16px_32px_rgba(108,99,255,0.24)] hover:opacity-90'
+                      : isAddBalanceMode === 'set'
+                      ? 'bg-primary shadow-[0_16px_32px_rgba(108,99,255,0.24)] hover:opacity-90'
+                      : 'bg-orange-500 shadow-[0_16px_32px_rgba(249,115,22,0.24)] hover:bg-orange-600'
                   }`}
                 >
-                  {isAddBalanceMode === 'add' ? 'Confirm Add' : 'Set Balance'}
+                  {isAddBalanceMode === 'add'
+                    ? 'Confirm Add'
+                    : isAddBalanceMode === 'set'
+                    ? 'Set Balance'
+                    : 'Set Budget Limit'}
                 </button>
               </div>
             </motion.div>
