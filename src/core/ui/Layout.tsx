@@ -44,7 +44,6 @@ const desktopNavItems: NavItem[] = [
   { path: appRoutes.insights, icon: PieChart, label: 'Insights' },
   { path: appRoutes.score, icon: Shield, label: 'Money Score' },
   { path: appRoutes.goals, icon: Target, label: 'Goals' },
-  { path: appRoutes.budget, icon: Wallet, label: 'Budget' },
 ];
 
 const mobileNavItems: NavItem[] = [
@@ -246,6 +245,27 @@ export function Layout() {
                   <Bell size={16} />
                 </button>
               </div>
+            </div>
+
+            <div className="mt-4 -mx-1 flex gap-2 overflow-x-auto px-1 pb-1 no-scrollbar md:hidden">
+              {desktopNavItems.map(item => {
+                const active = currentPath === item.path;
+                return (
+                  <Link
+                    key={`mobile-chip-${item.path}`}
+                    to={item.path}
+                    className={clsx(
+                      'flex shrink-0 items-center gap-2 rounded-2xl border px-3 py-2 text-xs font-bold transition',
+                      active
+                        ? 'border-primary/40 bg-primary/12 text-primary shadow-[0_10px_24px_rgba(108,99,255,0.18)]'
+                        : 'border-white/6 bg-white/[0.03] text-white/58'
+                    )}
+                  >
+                    <item.icon size={14} />
+                    <span>{item.label}</span>
+                  </Link>
+                );
+              })}
             </div>
           </header>
 
