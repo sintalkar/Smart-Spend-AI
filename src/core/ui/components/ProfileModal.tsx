@@ -330,6 +330,18 @@ export function ProfileModal({ isOpen, onClose, availableBalance }: ProfileModal
               </p>
             </div>
 
+            {/* Budget Planning Guide */}
+            <div className="mb-6 rounded-[22px] bg-secondary/5 border border-secondary/12 p-4 text-left relative overflow-hidden">
+              <div className="absolute top-0 right-0 h-20 w-20 rounded-full bg-secondary/5 blur-xl pointer-events-none" />
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-xs">🎯</span>
+                <span className="text-[10px] font-black uppercase tracking-[0.16em] text-secondary">App Highlight: Budget Planning</span>
+              </div>
+              <p className="text-[11px] leading-relaxed text-white/58 font-semibold">
+                The budget planning screen allows users to define monthly spending limits. Visual progress indicators help users control expenses during the month instead of discovering overspending after the month ends.
+              </p>
+            </div>
+
             {/* Confirmation logic for logout */}
             <AnimatePresence mode="wait">
               {showLogoutConfirm ? (
