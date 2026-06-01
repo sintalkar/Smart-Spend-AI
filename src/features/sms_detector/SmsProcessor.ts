@@ -10,14 +10,14 @@ export class SmsProcessor {
   /**
    * Processes an incoming SMS, returning the final transaction or throwing an error if unable to parse.
    */
-  public async processSms(smsBody: string, senderTitle: string): Promise<ParsedTransaction | null> {
+  public async processSms(smsBody: string, senderTitle: string, force = true): Promise<ParsedTransaction | null> {
     const toggles = adminService.getToggles();
-    if (!toggles.smsDetection) return null;
+    if (!toggles.smsDetection && !force) return null;
 
     const rawSanitized = DataSanitizer.sanitizeSms(smsBody);
 
     // Try Regex First
-    const regexResult = this.regexEngine.parse(rawSanitized, senderTitle);
+    const regexResult = this.regexEngine.parse(smsBody, senderTitle);
     
     let resolvedResult: ParsedTransaction | null = null;
     let method = '';
