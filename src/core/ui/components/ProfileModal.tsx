@@ -318,6 +318,18 @@ export function ProfileModal({ isOpen, onClose, availableBalance }: ProfileModal
               </div>
             </div>
 
+            {/* Dashboard Overview Guide */}
+            <div className="mb-6 rounded-[22px] bg-primary/5 border border-primary/12 p-4 text-left relative overflow-hidden">
+              <div className="absolute top-0 right-0 h-20 w-20 rounded-full bg-primary/5 blur-xl pointer-events-none" />
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-xs">💡</span>
+                <span className="text-[10px] font-black uppercase tracking-[0.16em] text-primary">App Highlight: Dashboard</span>
+              </div>
+              <p className="text-[11px] leading-relaxed text-white/58 font-semibold">
+                The dashboard screen is the main overview page. It presents the financial health score, income, expense, savings, recent transactions, category chart, and AI greeting. Users can understand the current month without opening multiple pages.
+              </p>
+            </div>
+
             {/* Confirmation logic for logout */}
             <AnimatePresence mode="wait">
               {showLogoutConfirm ? (
