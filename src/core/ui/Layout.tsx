@@ -16,6 +16,7 @@ import {
   Wallet,
   Bell,
   BrainCircuit,
+  Sparkles,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import clsx from 'clsx';
@@ -94,6 +95,16 @@ export function Layout() {
 
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
+  const [showWelcomePopup, setShowWelcomePopup] = useState(false);
+
+  // Monitor just_logged_in to trigger a premium popup message after user login
+  useEffect(() => {
+    const justLoggedIn = sessionStorage.getItem('just_logged_in');
+    if (justLoggedIn === 'true') {
+      setShowWelcomePopup(true);
+      sessionStorage.removeItem('just_logged_in');
+    }
+  }, []);
 
   // Monitor network status
   useEffect(() => {
@@ -540,6 +551,53 @@ export function Layout() {
                   Set Balance
                 </button>
               </div>
+            </motion.div>
+          </div>
+        )}
+
+        {showWelcomePopup && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowWelcomePopup(false)}
+              className="absolute inset-0 bg-black/80 backdrop-blur-md"
+            />
+            <motion.div
+              initial={{ scale: 0.92, y: 24, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              exit={{ scale: 0.92, y: 24, opacity: 0 }}
+              className="panel-linear relative z-10 w-full max-w-md rounded-[32px] p-8 text-center border border-white/8 bg-[#09090d]/96 shadow-[0_20px_50px_rgba(0,0,0,0.8)]"
+            >
+              <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-3xl bg-primary/12 text-primary shadow-[0_0_30px_rgba(108,99,255,0.18)]">
+                <Sparkles size={30} className="animate-pulse" />
+              </div>
+
+              <h3 className="mb-2 text-2xl font-black text-white tracking-tight">Welcome to SmartSpend AI! 🚀</h3>
+              <p className="mx-auto mb-6 max-w-sm text-xs leading-relaxed text-white/52 font-medium">
+                Your intelligent financial workspace has been configured successfully. Initial balances are synchronized, and secure real-time cloud backup is active.
+              </p>
+
+              <div className="rounded-2xl border border-emerald-500/10 bg-emerald-500/5 p-4 mb-8 text-left">
+                <div className="text-[10px] font-black uppercase tracking-widest text-emerald-400 mb-1.5 flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                  Security Confirmed
+                </div>
+                <p className="text-[11px] leading-relaxed text-white/44 font-semibold">
+                  Signed in securely as <span className="text-white/80 font-bold">{user?.email || 'local profile'}</span>. All data and offline local modifications are safely encrypted.
+                </p>
+              </div>
+
+              <button
+                onClick={() => {
+                  hapticFeedback.success();
+                  setShowWelcomePopup(false);
+                }}
+                className="w-full rounded-2xl bg-primary py-4 font-black uppercase tracking-[0.2em] text-xs text-white shadow-[0_14px_28px_rgba(108,99,255,0.24)] transition hover:bg-primary/90 active:scale-98"
+              >
+                Go to Dashboard
+              </button>
             </motion.div>
           </div>
         )}

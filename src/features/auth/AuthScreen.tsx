@@ -64,6 +64,7 @@ export default function AuthScreen() {
       setLoading(true);
       setError(null);
       await signInWithPopup(auth, provider);
+      sessionStorage.setItem('just_logged_in', 'true');
     } catch (e: any) {
       console.error(e);
 
@@ -139,6 +140,7 @@ export default function AuthScreen() {
       } else {
         await signInWithEmailAndPassword(auth, cleanEmail, password);
       }
+      sessionStorage.setItem('just_logged_in', 'true');
     } catch (e: any) {
       console.error(e);
       setError(getAuthErrorMessage(e?.code, e?.message));
