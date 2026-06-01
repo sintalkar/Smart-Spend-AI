@@ -178,6 +178,7 @@ export function parseSMS(body: string, sender: string): SMSParsedResult | null {
         /\bRs\.?\b/i,
         /\bINR\b/i,
         /₹/i,
+        /\s+for\b/i,
         /\.\s+(?:bal|rrn|ref|info|limit|avl|txn|card)/i
       ];
       
@@ -195,12 +196,16 @@ export function parseSMS(body: string, sender: string): SMSParsedResult | null {
       candidate = candidate.replace(/\.(?!\d)/g, '').trim(); // Remove periods not followed by digit
       
       // Check if candidate is valid (not pure numbers, and not a bank/account name)
-      // Check if candidate is valid (not pure numbers, and not a bank/account name)
       const lowercaseCand = candidate.toLowerCase();
       const knownBanks = Object.values(SENDER_MAP).map(v => v.toLowerCase());
       const paymentApps = ['paytm', 'phonepe', 'gpay', 'bhim', 'amazon pay', 'amzpay'];
       
       const containsBankName = lowercaseCand.includes('bank') && !lowercaseCand.includes('@');
+      const genericWords = [
+        'txn', 'transaction', 'trf', 'transfer', 'payment', 'pay', 
+        'debit', 'credit', 'ref', 'pmt', 'amount', 'rs', 'inr', 'cash', 
+        'withdrawal', 'online', 'netbanking', 'banking', 'bank transfer'
+      ];
       
       const isBankOrAccount = 
         lowercaseCand.startsWith('a/c') || 
@@ -210,6 +215,7 @@ export function parseSMS(body: string, sender: string): SMSParsedResult | null {
         lowercaseCand === 'bank' ||
         lowercaseCand === 'card' ||
         containsBankName ||
+        genericWords.includes(lowercaseCand) ||
         lowercaseCand === cleanSender.toLowerCase() ||
         (knownBanks.includes(lowercaseCand) && !paymentApps.some(app => lowercaseCand.includes(app)));
         
