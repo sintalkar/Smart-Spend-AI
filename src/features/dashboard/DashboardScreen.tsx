@@ -216,13 +216,45 @@ export default function DashboardScreen() {
       .filter((t) => t.type === TransactionType.DEBIT && t.isDeleted === 0)
       .reduce((sum, t) => sum + t.amount, 0);
 
-    const thisMonth = transactions.filter((t) => {
+    let targetMonth = new Date();
+    let thisMonth = transactions.filter((t) => {
       try {
-        return t.isDeleted === 0 && isSameMonth(new Date(t.dateTime), new Date());
+        if (!t.dateTime) return false;
+        let parsedTime = typeof t.dateTime === 'string' && /^\d+$/.test(t.dateTime) ? Number(t.dateTime) : t.dateTime;
+        if (typeof parsedTime === 'number' && parsedTime < 9999999999) {
+          parsedTime = parsedTime * 1000;
+        }
+        return t.isDeleted === 0 && isSameMonth(new Date(parsedTime), targetMonth);
       } catch {
         return false;
       }
     });
+
+    // Fallback: If no transactions exist for the current month, analyze the latest month with transaction data
+    if (thisMonth.length === 0 && transactions.length > 0) {
+      const activeTxs = transactions.filter(t => t.isDeleted === 0);
+      if (activeTxs.length > 0) {
+        const latestTx = activeTxs.reduce((latest, current) => {
+          const latestTime = typeof latest.dateTime === 'string' ? new Date(latest.dateTime).getTime() : latest.dateTime;
+          const currentTime = typeof current.dateTime === 'string' ? new Date(current.dateTime).getTime() : current.dateTime;
+          return currentTime > latestTime ? current : latest;
+        });
+        const t = typeof latestTx.dateTime === 'string' && /^\d+$/.test(latestTx.dateTime) ? Number(latestTx.dateTime) : latestTx.dateTime;
+        targetMonth = new Date(typeof t === 'number' && t < 9999999999 ? t * 1000 : t);
+        thisMonth = transactions.filter((tx) => {
+          try {
+            if (!tx.dateTime) return false;
+            let parsedTime = typeof tx.dateTime === 'string' && /^\d+$/.test(tx.dateTime) ? Number(tx.dateTime) : tx.dateTime;
+            if (typeof parsedTime === 'number' && parsedTime < 9999999999) {
+              parsedTime = parsedTime * 1000;
+            }
+            return tx.isDeleted === 0 && isSameMonth(new Date(parsedTime), targetMonth);
+          } catch {
+            return false;
+          }
+        });
+      }
+    }
 
     const monthlyDebits = thisMonth.filter((t) => t.type === TransactionType.DEBIT);
     const monthlyCredits = thisMonth.filter((t) => t.type === TransactionType.CREDIT);

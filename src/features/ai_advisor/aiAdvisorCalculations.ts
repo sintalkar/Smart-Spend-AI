@@ -123,8 +123,20 @@ const roundMoney = (value: number) => Math.max(0, Math.round(value));
 
 const formatINR = (value: number) => `INR ${roundMoney(value).toLocaleString('en-IN')}`;
 
-function isSameMonth(timestamp: number, now = new Date()) {
-  const date = new Date(timestamp);
+function isSameMonth(timestamp: number | string | Date, now = new Date()) {
+  if (!timestamp) return false;
+  let parsedTimestamp: number | string | Date = timestamp;
+  if (typeof timestamp === 'string') {
+    if (/^\d+$/.test(timestamp)) {
+      parsedTimestamp = Number(timestamp);
+    }
+  }
+  // Convert seconds to milliseconds if needed (e.g. 10 digits instead of 13 digits)
+  if (typeof parsedTimestamp === 'number' && parsedTimestamp < 9999999999) {
+    parsedTimestamp = parsedTimestamp * 1000;
+  }
+  const date = new Date(parsedTimestamp);
+  if (isNaN(date.getTime())) return false;
   return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
 }
 
@@ -521,7 +533,24 @@ export function analyzeSmartAdvisor(params: {
   now?: Date;
 }): AiAdvisorAnalysis {
   const { transactions, budgets, categories, initialBalance, incomeOverride, monthlyBudgetGoal = 0, scannedExpenses = [], now = new Date() } = params;
-  const activeTransactions = transactions.filter((tx) => tx.isDeleted === 0 && isSameMonth(tx.dateTime, now));
+  
+  let targetMonth = now;
+  let activeTransactions = transactions.filter((tx) => tx.isDeleted === 0 && isSameMonth(tx.dateTime, targetMonth));
+  
+  // Fallback: If no transactions exist for the current month, analyze the latest month with transaction data
+  if (activeTransactions.length === 0 && transactions.length > 0) {
+    const activeTxs = transactions.filter(t => t.isDeleted === 0);
+    if (activeTxs.length > 0) {
+      const latestTx = activeTxs.reduce((latest, current) => {
+        const latestTime = typeof latest.dateTime === 'string' ? new Date(latest.dateTime).getTime() : latest.dateTime;
+        const currentTime = typeof current.dateTime === 'string' ? new Date(current.dateTime).getTime() : current.dateTime;
+        return currentTime > latestTime ? current : latest;
+      });
+      const t = typeof latestTx.dateTime === 'string' && /^\d+$/.test(latestTx.dateTime) ? Number(latestTx.dateTime) : latestTx.dateTime;
+      targetMonth = new Date(typeof t === 'number' && t < 9999999999 ? t * 1000 : t);
+      activeTransactions = transactions.filter((tx) => tx.isDeleted === 0 && isSameMonth(tx.dateTime, targetMonth));
+    }
+  }
   const credits = activeTransactions.filter((tx) => tx.type === TransactionType.CREDIT);
   const debits = activeTransactions.filter((tx) => tx.type === TransactionType.DEBIT);
   const incomeFromCredits = credits.reduce((sum, tx) => sum + tx.amount, 0);
