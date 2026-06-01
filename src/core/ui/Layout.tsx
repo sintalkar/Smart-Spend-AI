@@ -35,6 +35,7 @@ import { db } from '../../db';
 import { TransactionType } from '../../db/models';
 import { ProfileModal } from './components/ProfileModal';
 import { hapticFeedback } from '../utils/haptics';
+import { syncService } from '../../services/FirebaseSyncService';
 
 type NavItem = {
   path: string;
@@ -90,6 +91,30 @@ export function Layout() {
       .reduce((sum, t) => sum + t.amount, 0);
     return startBal + allCredits - allDebits;
   })();
+
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [pendingSyncCount, setPendingSyncCount] = useState(0);
+
+  // Monitor network status
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  // Monitor pending Sync changes from Firebase
+  useEffect(() => {
+    return syncService.subscribePending((count) => {
+      setPendingSyncCount(count);
+    });
+  }, []);
 
   useEffect(() => {
     return adminService.subscribe(() => {
@@ -265,6 +290,39 @@ export function Layout() {
               </button>
 
               <div className="flex items-center gap-2">
+                {!isOnline && (
+                  <button
+                    onClick={() => {
+                      hapticFeedback.light();
+                      setIsProfileOpen(true);
+                    }}
+                    className="flex h-11 items-center gap-2 rounded-2xl border border-amber-500/20 bg-amber-500/10 px-3 text-xs font-black uppercase tracking-wider text-amber-400 transition hover:bg-amber-500/15 cursor-pointer"
+                    title="Running offline without internet. Transactions saved locally."
+                  >
+                    <span className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
+                    Offline Mode
+                    {pendingSyncCount > 0 && (
+                      <span className="rounded bg-amber-500 text-background px-1.5 py-0.5 text-[10px] font-black ml-1">
+                        {pendingSyncCount}
+                      </span>
+                    )}
+                  </button>
+                )}
+
+                {isOnline && pendingSyncCount > 0 && (
+                  <button
+                    onClick={() => {
+                      hapticFeedback.light();
+                      setIsProfileOpen(true);
+                    }}
+                    className="flex h-11 items-center gap-2 rounded-2xl border border-primary/20 bg-primary/10 px-3 text-xs font-black uppercase tracking-wider text-primary transition hover:bg-primary/15 cursor-pointer"
+                    title="Syncing pending transactions to the cloud..."
+                  >
+                    <span className="h-2 w-2 rounded-full bg-primary animate-ping animate-pulse" />
+                    Syncing ({pendingSyncCount})
+                  </button>
+                )}
+
                 <button
                   onClick={() => setIsAiOpen(true)}
                   className="hidden rounded-2xl border border-primary/20 bg-primary/10 px-4 py-2.5 text-xs font-black uppercase tracking-[0.18em] text-primary transition hover:bg-primary/15 md:block"
@@ -407,6 +465,8 @@ export function Layout() {
         isOpen={isProfileOpen}
         onClose={() => setIsProfileOpen(false)}
         availableBalance={calculatedBalance}
+        isOnline={isOnline}
+        pendingSyncCount={pendingSyncCount}
       />
 
       <AnimatePresence>

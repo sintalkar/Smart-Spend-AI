@@ -7,6 +7,26 @@ class FirebaseSyncService {
   private unsubscribe: (() => void) | null = null;
   public isSyncingFromFirebase = false;
 
+  private pendingCount = 0;
+  private listeners: ((count: number) => void)[] = [];
+
+  public getPendingCount() {
+    return this.pendingCount;
+  }
+
+  public subscribePending(cb: (count: number) => void) {
+    this.listeners.push(cb);
+    cb(this.pendingCount);
+    return () => {
+      this.listeners = this.listeners.filter(l => l !== cb);
+    };
+  }
+
+  private notify(count: number) {
+    this.pendingCount = count;
+    this.listeners.forEach(cb => cb(count));
+  }
+
   public async startSync() {
     const user = auth.currentUser;
     if (!user) return;
@@ -36,8 +56,12 @@ class FirebaseSyncService {
       this.isSyncingFromFirebase = false;
     }
 
-    // Start real-time listener
-    this.unsubscribe = onSnapshot(txRef, async (snapshot) => {
+    // Start real-time listener with metadata changes tracked
+    this.unsubscribe = onSnapshot(txRef, { includeMetadataChanges: true }, async (snapshot) => {
+      // Calculate pending offline writes
+      const unsyncedCount = snapshot.docs.filter(doc => doc.metadata.hasPendingWrites).length;
+      this.notify(unsyncedCount);
+
       if (snapshot.metadata.hasPendingWrites) return; // Ignore local writes echoed back
       
       this.isSyncingFromFirebase = true;

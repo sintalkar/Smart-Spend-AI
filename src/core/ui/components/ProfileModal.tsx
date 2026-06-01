@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import clsx from 'clsx';
 import {
   X,
   LogOut,
@@ -29,9 +30,17 @@ interface ProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
   availableBalance: number;
+  isOnline: boolean;
+  pendingSyncCount: number;
 }
 
-export function ProfileModal({ isOpen, onClose, availableBalance }: ProfileModalProps) {
+export function ProfileModal({ 
+  isOpen, 
+  onClose, 
+  availableBalance,
+  isOnline,
+  pendingSyncCount
+}: ProfileModalProps) {
   const { user, logout } = useAuth();
   
   // States
@@ -295,26 +304,47 @@ export function ProfileModal({ isOpen, onClose, availableBalance }: ProfileModal
             <div className="mb-6 rounded-[22px] bg-black/30 border border-white/5 p-4 space-y-3">
               <div className="flex items-center justify-between text-xs">
                 <span className="text-white/34 flex items-center gap-1.5">
-                  <Cloud size={13} className="text-emerald-400" /> Cloud Auto-Sync
+                  <Cloud size={13} className={isOnline ? "text-emerald-400" : "text-amber-400"} /> Cloud Auto-Sync
                 </span>
-                <div className="flex items-center gap-1.5 font-bold text-emerald-400 bg-emerald-400/10 border border-emerald-400/15 rounded-full px-2 py-0.5 text-[10px]">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  ONLINE
+                <div className={clsx(
+                  "flex items-center gap-1.5 font-bold border rounded-full px-2 py-0.5 text-[10px]",
+                  isOnline 
+                    ? "text-emerald-400 bg-emerald-400/10 border-emerald-400/15" 
+                    : "text-amber-400 bg-amber-400/10 border-amber-400/15"
+                )}>
+                  <span className={clsx(
+                    "h-1.5 w-1.5 rounded-full animate-pulse",
+                    isOnline ? "bg-emerald-400" : "bg-amber-400"
+                  )} />
+                  {isOnline ? "ONLINE" : "OFFLINE MODE"}
                 </div>
               </div>
 
+              {/* Real-time Unsynced changes counter */}
               <div className="flex items-center justify-between text-xs">
                 <span className="text-white/34 flex items-center gap-1.5">
-                  <Database size={13} className="text-secondary" /> Local Engine
+                  <Database size={13} className="text-primary" /> Pending Sync
                 </span>
-                <span className="font-bold text-white/58">IndexedDB (Active)</span>
+                <span className={clsx(
+                  "font-bold text-xs font-mono",
+                  pendingSyncCount > 0 ? "text-amber-400" : "text-white/58"
+                )}>
+                  {pendingSyncCount > 0 ? `${pendingSyncCount} record(s) pending` : "All synced to cloud"}
+                </span>
               </div>
 
               <div className="flex items-center justify-between text-xs">
                 <span className="text-white/34 flex items-center gap-1.5">
-                  <Shield size={13} className="text-primary" /> Data Regulation
+                  <Database size={13} className="text-secondary" /> Local Database
                 </span>
-                <span className="font-bold text-white/58">DPDPA 2023 Compliant</span>
+                <span className="font-bold text-white/58 text-xs">IndexedDB (Active & Capable)</span>
+              </div>
+
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-white/34 flex items-center gap-1.5">
+                  <Shield size={13} className="text-primary" /> Security Standard
+                </span>
+                <span className="font-bold text-white/58">DPDPA 2023 Secured</span>
               </div>
             </div>
 
