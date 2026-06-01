@@ -328,9 +328,9 @@ export function ProfileModal({ isOpen, onClose, availableBalance }: ProfileModal
                   className="rounded-2xl border border-error/20 bg-error/5 p-4 text-center mt-2"
                 >
                   <AlertCircle className="mx-auto text-error mb-2" size={24} />
-                  <h4 className="text-sm font-bold text-white">Wipe local data & sign out?</h4>
+                  <h4 className="text-sm font-bold text-white">Sign out of your account?</h4>
                   <p className="text-[11px] text-white/46 mt-1 mb-4 leading-relaxed max-w-sm mx-auto">
-                    All local workspace cache will be securely cleared. Any cloud syncs will resume when you sign in again.
+                    Your offline data remains secure on this device. You can securely log back in at any time to resume syncing.
                   </p>
                   <div className="flex gap-2">
                     <button

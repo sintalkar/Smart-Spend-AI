@@ -33,10 +33,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       syncService.stopSync();
       await auth.signOut();
-      await db.clearAllData();
-      localStorage.removeItem('initial_balance');
       localStorage.removeItem('ai_greeting_cache');
-      console.log('[AuthProvider] User signed out and local data cleared');
+      console.log('[AuthProvider] User signed out');
     } catch (error) {
       console.error('[AuthProvider] Sign out error:', error);
     }
