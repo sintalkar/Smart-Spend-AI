@@ -12,6 +12,7 @@ export const appRoutes = {
   installGuide: '/install-guide',
   privacy: '/privacy',
   landing: '/landing',
+  admin: '/admin',
 } as const;
 
 export type AddEntryMode = 'manual' | 'voice' | 'receipt';

@@ -25,6 +25,8 @@ import { db } from '../../../db';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { toast } from 'react-hot-toast';
 import { hapticFeedback } from '../../utils/haptics';
+import { useNavigate } from 'react-router-dom';
+import { appRoutes } from '../../routes';
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -42,6 +44,7 @@ export function ProfileModal({
   pendingSyncCount
 }: ProfileModalProps) {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
   
   // States
   const [isEditingName, setIsEditingName] = useState(false);
@@ -419,6 +422,20 @@ export function ProfileModal({
                 </div>
               )}
             </AnimatePresence>
+
+            {/* Developer Admin Entrance */}
+            <div className="mt-6 flex justify-center">
+              <button
+                onClick={() => {
+                  hapticFeedback.light();
+                  onClose();
+                  navigate(appRoutes.admin);
+                }}
+                className="text-[10px] font-black uppercase tracking-[0.2em] text-primary hover:text-primary/80 transition flex items-center gap-1.5 cursor-pointer bg-primary/5 hover:bg-primary/10 border border-primary/15 rounded-xl px-4 py-2"
+              >
+                🔧 Open Admin Panel
+              </button>
+            </div>
 
             {/* Version footprint footer */}
             <div className="mt-6 text-center text-[10px] text-white/20">

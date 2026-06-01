@@ -22,6 +22,7 @@ const LandingPage = lazy(() => import('./features/landing/LandingPage'));
 const RecurringScreen = lazy(() => import('./features/recurring/RecurringScreen'));
 const GoalsScreen = lazy(() => import('./features/goals/GoalsScreen'));
 const GoalDetailScreen = lazy(() => import('./features/goals/GoalDetailScreen'));
+const AdminScreen = lazy(() => import('./features/admin/AdminScreen'));
 
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
 
@@ -148,6 +149,7 @@ export default function App() {
               <Route path="goals/:id" element={<GoalDetailScreen />} />
               <Route path="install-guide" element={<InstallGuideScreen />} />
               <Route path="privacy" element={<PrivacyPolicy />} />
+              <Route path="admin" element={<AdminScreen />} />
             </Route>
             <Route path="/landing" element={<LandingPage />} />
           </Routes>
