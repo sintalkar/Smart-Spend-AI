@@ -30,6 +30,11 @@ import { AiAssistant } from '../../features/ai_assistant/AiAssistant';
 import { AnnouncementBanner } from './AnnouncementBanner';
 import { MaintenanceScreen } from './MaintenanceScreen';
 import { appRoutes, getAddEntryPath } from '../routes';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { db } from '../../db';
+import { TransactionType } from '../../db/models';
+import { ProfileModal } from './components/ProfileModal';
+import { hapticFeedback } from '../utils/haptics';
 
 type NavItem = {
   path: string;
@@ -65,6 +70,7 @@ export function Layout() {
   const openedOnce = useRef(false);
 
   const { user } = useAuth();
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isBalanceModalOpen, setIsBalanceModalOpen] = useState(false);
   const [balanceInput, setBalanceInput] = useState('');
   const [balanceError, setBalanceError] = useState<string | null>(null);
@@ -72,6 +78,18 @@ export function Layout() {
     const stored = localStorage.getItem('initial_balance');
     return stored ? Number(stored) : null;
   });
+
+  const transactions = useLiveQuery(() => db.transactions.where('isDeleted').equals(0).toArray()) || [];
+  const calculatedBalance = (() => {
+    const startBal = initialBalance ?? 0;
+    const allCredits = transactions
+      .filter((t) => t.type === TransactionType.CREDIT)
+      .reduce((sum, t) => sum + t.amount, 0);
+    const allDebits = transactions
+      .filter((t) => t.type === TransactionType.DEBIT)
+      .reduce((sum, t) => sum + t.amount, 0);
+    return startBal + allCredits - allDebits;
+  })();
 
   useEffect(() => {
     return adminService.subscribe(() => {
@@ -202,15 +220,21 @@ export function Layout() {
               + Ask SmartSpend AI
             </button>
 
-            <div className="soft-divider flex items-center gap-3 border-t pt-4">
+            <button
+              onClick={() => {
+                hapticFeedback.light();
+                setIsProfileOpen(true);
+              }}
+              className="soft-divider flex w-full items-center gap-3 border-t pt-4 text-left cursor-pointer hover:bg-white/4 p-2 rounded-2xl transition duration-200"
+            >
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 font-display text-xs font-black text-primary">
                 {userInitials}
               </div>
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-bold text-white">{user?.displayName || 'SmartSpend User'}</p>
                 <p className="truncate text-[11px] text-white/28">{user?.email || 'local profile'}</p>
               </div>
-            </div>
+            </button>
           </div>
         </aside>
 
@@ -219,7 +243,13 @@ export function Layout() {
 
           <header className="sticky top-0 z-40 border-b border-white/5 bg-[#09090d]/92 px-4 py-4 backdrop-blur-xl md:px-6">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
+              <button
+                onClick={() => {
+                  hapticFeedback.light();
+                  setIsProfileOpen(true);
+                }}
+                className="flex items-center gap-3 cursor-pointer hover:bg-white/4 p-1.5 rounded-2xl transition duration-200 text-left"
+              >
                 <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 font-display text-sm font-black text-primary md:hidden">
                   {userInitials}
                 </div>
@@ -232,7 +262,7 @@ export function Layout() {
                     {user?.displayName?.split(' ')[0] || 'Rohan'}
                   </h1>
                 </div>
-              </div>
+              </button>
 
               <div className="flex items-center gap-2">
                 <button
@@ -373,6 +403,11 @@ export function Layout() {
 
       <PwaInstallPrompt />
       <AiAssistant forceOpen={isAiOpen} onOpenChange={setIsAiOpen} hideLauncher />
+      <ProfileModal
+        isOpen={isProfileOpen}
+        onClose={() => setIsProfileOpen(false)}
+        availableBalance={calculatedBalance}
+      />
 
       <AnimatePresence>
         {isBalanceModalOpen && (
